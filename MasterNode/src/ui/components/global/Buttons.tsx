@@ -1,4 +1,4 @@
-import { CSSProperties, JSX, ReactNode } from "react";
+import { CSSProperties, JSX, ReactNode, useState } from "react";
 import { colors } from "../../assets/colors";
 
 interface props {
@@ -16,6 +16,17 @@ export const SubmitButton = ({
   onClickBtn,
   xstyles,
 }: props): JSX.Element => {
+  const [isClicked, setIsClicked] = useState(false);
+
+  const handleClick = async () => {
+    if (isDisabled) return;
+
+    setIsClicked(true);
+    setTimeout(() => setIsClicked(false), 200); // Reset the click state after 200ms
+
+    await onClickBtn(); // Ensure the button action is executed
+  };
+
   return (
     <button
       style={{
@@ -33,13 +44,17 @@ export const SubmitButton = ({
         fontSize: "1rem",
         fontWeight: "bold",
         color: isDisabled ? colors.textsecondary : colors.primary,
-        backgroundColor: isDisabled ? colors.divider : colors.accent,
+        backgroundColor: isDisabled
+          ? colors.divider
+          : isClicked
+          ? colors.divider 
+          : colors.accent,
         transition: "all ease-in-out 0.25s",
         cursor: isDisabled ? "not-allowed" : "pointer",
         ...xstyles,
       }}
       disabled={isDisabled}
-      onClick={onClickBtn}
+      onClick={handleClick}
     >
       {btnText}
       {btnIcon}

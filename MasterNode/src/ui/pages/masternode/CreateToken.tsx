@@ -5,7 +5,11 @@ import { HorizontalDivider } from "../../components/global/Divider";
 import { TextInput, MultiLineTextInput } from "../../components/global/Inputs";
 import { SubmitButton } from "../../components/global/Buttons";
 import { useSnackbar } from "../../hooks/snackbar";
-import { Blockchain, NodeToken, MasterNode } from "../node-token-implementation";
+import {
+  Blockchain,
+  NodeToken,
+  MasterNode,
+} from "../node-token-implementation";
 import { blockchainAPI } from "../../utils/api/websocket";
 import { WS_MESSAGE_TYPES } from "../../utils/api/config";
 import "../../styles/pages/masternode/createtoken.scss";
@@ -37,10 +41,12 @@ export default function CreateToken(): JSX.Element {
       try {
         const isConnected = await blockchainAPI.isConnected();
         if (!isConnected) {
-          showerrorsnack("WebSocket connection not available. Please try again later.");
+          showerrorsnack(
+            "WebSocket connection not available. Please try again later."
+          );
         }
       } catch (error) {
-        console.error('Connection check error:', error);
+        console.error("Connection check error:", error);
       }
     };
     checkConnection();
@@ -67,7 +73,11 @@ export default function CreateToken(): JSX.Element {
       setTempToken(token);
       setShowConfirmation(true);
     } catch (error) {
-      showerrorsnack(`Error generating token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showerrorsnack(
+        `Error generating token: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
@@ -83,7 +93,7 @@ export default function CreateToken(): JSX.Element {
       // Register the token hash with the WebSocket server
       await blockchainAPI.sendMessage(WS_MESSAGE_TYPES.REGISTER_TOKEN_HASH, {
         serialNumber: nodeSerial,
-        hash: tempToken.tokenHash
+        hash: tempToken.tokenHash,
       });
 
       // Add the node identity
@@ -92,13 +102,15 @@ export default function CreateToken(): JSX.Element {
         privateKey,
         nodeName,
         nodeType,
-        serialNumber: nodeSerial
+        serialNumber: nodeSerial,
       });
 
       // Verify the token
       const isValid = tempToken.isValid(masterNode.masterPublicKey);
       setIsNodeActive(isValid);
-      setVerificationStatus(isValid ? "Token verified successfully" : "Token verification failed");
+      setVerificationStatus(
+        isValid ? "Token verified successfully" : "Token verification failed"
+      );
 
       // Clear form
       setNodeName("");
@@ -108,7 +120,7 @@ export default function CreateToken(): JSX.Element {
       setNodeType("S");
       setAddress("");
       setPrivateKey("");
-      
+
       showsuccesssnack("Token created and verified successfully");
     } catch (error) {
       showerrorsnack("Failed to create token, please try again");
@@ -129,7 +141,7 @@ export default function CreateToken(): JSX.Element {
     <AppLayout>
       <section id="createtoken">
         <div className="form">
-          <p className="title">Verify Your Identity</p>
+          <p className="title">Create a New Node Token</p>
 
           <HorizontalDivider sx={{ marginTop: "1rem" }} />
 
@@ -173,85 +185,14 @@ export default function CreateToken(): JSX.Element {
             setInputValue={setNodeType}
           />
 
-          <TextInput
-            muiLabel="Address"
-            placeholder="0x123..."
-            inputType="text"
-            inputValue={address}
-            setInputValue={setAddress}
-          />
-
-          <MultiLineTextInput
-            muiLabel="Private Key"
-            placeholder="private key"
-            inputType="text"
-            inputValue={privateKey}
-            setInputValue={setPrivateKey}
-          />
-
           <SubmitButton
-            btnText={isVerifying ? "Verifying..." : "Create"}
-            isDisabled={
-              nodeName === "" ||
-              txDateTime === "" ||
-              nodeSerial === "" ||
-              type === "" ||
-              nodeType === "" ||
-              address === "" ||
-              privateKey === "" ||
-              isVerifying
-            }
-            onClickBtn={generateToken}
+            btnText={"Create"}
+            isDisabled={!nodeSerial || !nodeType}
+            onClickBtn={() => {}}
             xstyles={{ marginTop: "1rem" }}
           />
-
-          {/* Token Status Display */}
-          {generatedToken && (
-            <div className="token-status">
-              <h3>Token Status</h3>
-              <div className="token-info">
-                <p><strong>Token Hash:</strong> {generatedToken.tokenHash}</p>
-                <p><strong>Status:</strong> {isNodeActive ? "✓ Active" : "✗ Inactive"}</p>
-                <p><strong>Verification:</strong> {verificationStatus}</p>
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Confirmation Dialog */}
-        {showConfirmation && (
-          <div className="confirmation-dialog">
-            <div className="dialog-content">
-              <h3>Confirm Token</h3>
-              <div className="token-details">
-                <p><strong>Serial Number:</strong> {nodeSerial}</p>
-                <p><strong>Type:</strong> {type}</p>
-                <p><strong>Node Type:</strong> {nodeType}</p>
-                <p><strong>Generated Hash:</strong> {tempToken?.tokenHash}</p>
-              </div>
-              <div className="dialog-actions">
-                <button 
-                  className="cancel-btn" 
-                  onClick={handleCancelToken}
-                  disabled={isVerifying}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="confirm-btn" 
-                  onClick={handleConfirmToken}
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? "Verifying..." : "Confirm"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
     </AppLayout>
   );
 }
-
-
-

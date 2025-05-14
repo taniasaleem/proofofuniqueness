@@ -420,4 +420,4 @@ export const blockchainAPI = {
   onMessage: (type: string, handler: (data: any) => void) => {
     wsService.onMessage(type, handler);
   }
-}; 
+};
