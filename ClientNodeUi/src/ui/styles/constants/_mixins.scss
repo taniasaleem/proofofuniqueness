@@ -1,0 +1,34 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap");
+
+@mixin useBaseFont() {
+  font-family: "Plus Jakarta Sans", serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+  font-variation-settings: "wdth" 100;
+}
+
+@mixin useAltFont() {
+  font-family: "Raleway", serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+}
+
+@mixin useFlex($flexDirection, $flexWrap, $alignItems, $justifyContent, $gap) {
+  display: flex !important;
+  flex-direction: $flexDirection;
+  align-items: $alignItems;
+  justify-content: $justifyContent;
+  flex-wrap: $flexWrap;
+  gap: $gap;
+}
+
+@mixin useButton() {
+  border: 0;
+  outline: none;
+  outline-color: transparent;
+  background-color: transparent;
+  cursor: pointer;
+}

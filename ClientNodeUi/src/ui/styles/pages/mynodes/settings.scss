@@ -1,0 +1,60 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#mynodesettings {
+  @include mixins.useFlex(row, nowrap, center, space-between, 0);
+
+  ._settings {
+    width: 48%;
+
+    .title_desc {
+      @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0);
+      font-size: 1rem;
+      font-weight: 500;
+
+      span {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: colors.$textsecondary;
+      }
+    }
+  }
+}
+
+.resource_ctr,
+.radio_btn {
+  @include mixins.useFlex(row, nowrap, center, flex-start, 0.5rem);
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.875rem 0.5rem;
+  border: 2px solid rgba($color: colors.$textsecondary, $alpha: 0.05);
+  border-radius: 0.375rem;
+  background-color: rgba($color: colors.$textsecondary, $alpha: 0.05);
+  cursor: pointer;
+
+  .radioctr {
+    @include mixins.useFlex(row, nowrap, center, center, 0);
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid colors.$divider;
+    border-radius: 50%;
+
+    div {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+    }
+  }
+
+  p {
+    @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0);
+    font-size: 0.875rem;
+    font-weight: 500;
+
+    span {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: colors.$textsecondary;
+    }
+  }
+}

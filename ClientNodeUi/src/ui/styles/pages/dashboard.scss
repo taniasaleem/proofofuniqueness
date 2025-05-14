@@ -1,0 +1,76 @@
+@use "../constants/colors" as colors;
+@use "../constants/mixins" as mixins;
+
+#dashboard {
+  margin-bottom: 4rem;
+
+  ._title {
+    @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0.5rem);
+    font-size: 2rem;
+    font-weight: bold;
+
+    span {
+      font-size: 1rem;
+      font-weight: 400;
+      color: colors.$textsecondary;
+    }
+  }
+
+  .stats {
+    @include mixins.useFlex(row, nowrap, center, space-between, 0);
+    margin-top: 1.75rem;
+
+    .stat {
+      width: 32%;
+      height: 6.5rem;
+      padding: 1rem;
+      border: 1px solid colors.$divider;
+      border-radius: 0.75rem;
+
+      span {
+        font-size: 1rem;
+        font-weight: 400;
+      }
+
+      p {
+        margin-top: 0.5rem;
+        font-size: 1.5rem;
+        font-weight: bold;
+      }
+    }
+  }
+
+  .network_activity_performance {
+    @include mixins.useFlex(row, nowrap, center, space-between, 0);
+    margin-top: 1.75rem;
+
+    .network_activity,
+    ._performance {
+      @include mixins.useFlex(column, nowrap, flex-start, space-between, 0);
+      width: 32%;
+      height: 27.75rem;
+      padding: 1rem;
+      border: 1px solid colors.$divider;
+      border-radius: 0.75rem;
+
+      .activity_title {
+        @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0.5rem);
+        font-size: 1.875rem;
+        font-weight: bold;
+
+        span {
+          font-size: 1rem;
+          font-weight: 400;
+        }
+
+        .activity_title {
+          font-weight: 600;
+        }
+
+        .time_change {
+          color: colors.$textsecondary;
+        }
+      }
+    }
+  }
+}

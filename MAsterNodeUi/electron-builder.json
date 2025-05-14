@@ -1,0 +1,21 @@
+{
+  "appId": "com.pou.masternodeclient",
+  "icon": "./icon.png",
+  "files": ["build-electron", "build-react"],
+  "extraResources": ["src/ui/assets/**"],
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64", "x64"]
+      }
+    ]
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Utility"
+  },
+  "win": {
+    "target": ["portable", "msi"]
+  }
+}

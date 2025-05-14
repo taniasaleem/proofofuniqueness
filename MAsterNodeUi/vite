@@ -1,0 +1,22 @@
+
+
+> masternodeclient@0.0.0 transpile:electron
+> tsc --project src/electron/tsconfig.json
+
+11:00:06 PM [vite] (client) Re-optimizing dependencies because lockfile has c
+11:00:06 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+
+  VITE v6.3.5  ready in 301 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKClient subclass]: chose
+2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:
+2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+^C2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:
+2025-05-11 23:00:08.648zsh: command not found: dev:react2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:
+2025-05-11 23:00:08.648zsh: command not found: dev:react2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:
+2025-05-11 23:00:08.648zsh: command not found: dev:react2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:
+2025-05-11 23:00:08.648zsh: command not found: dev:react2025-05-11 23:00:08.648 Electron[16037:95937794] +[IMKInputSession subclass]:

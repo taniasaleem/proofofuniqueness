@@ -1,0 +1,80 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#mywallets {
+  width: 100%;
+  margin-bottom: 4rem;
+  border: 1px solid colors.$divider;
+  border-radius: 0.375rem;
+
+  .title {
+    margin: 1rem 0;
+    padding-left: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .wallet_ctr {
+    width: 100%;
+
+    tr {
+      text-align: left;
+
+      th {
+        padding: 0.5rem;
+        border-bottom: 1px solid colors.$divider;
+      }
+
+      td {
+        padding: 0.5rem;
+        border-bottom: 1px solid colors.$divider;
+        font-weight: 500;
+      }
+
+      #network,
+      #balance {
+        font-weight: bold;
+      }
+
+      #walletname,
+      #address,
+      #datetime {
+        color: colors.$textsecondary;
+      }
+    }
+  }
+
+  .transactions_ctr {
+    @include mixins.useFlex(row, nowrap, center, space-between, 0);
+    padding: 0.5rem;
+    border-top: 1px solid colors.$divider;
+
+    p {
+      @include mixins.useFlex(row, nowrap, center, flex-start, 1rem);
+
+      span {
+        font-size: 0.875rem;
+      }
+
+      .action {
+        font-size: 1rem;
+        font-weight: bold;
+      }
+
+      .address {
+        font-weight: bold;
+        color: colors.$textsecondary;
+      }
+
+      .amount {
+        font-weight: bold;
+      }
+    }
+
+    .date_time {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: colors.$textsecondary;
+    }
+  }
+}

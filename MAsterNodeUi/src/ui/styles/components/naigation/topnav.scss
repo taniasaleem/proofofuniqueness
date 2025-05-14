@@ -1,0 +1,73 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+.topnav {
+  @include mixins.useFlex(row, nowrap, center, space-between, 0);
+  height: 3.875rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid colors.$divider;
+  background-color: colors.$primary;
+  z-index: 1000;
+
+  .node_man_title {
+    @include mixins.useFlex(row, nowrap, center, flex-start, 0.5rem);
+    @include mixins.useBaseFont();
+
+    p {
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+  }
+
+  .links_actions {
+    @include mixins.useFlex(row, nowrap, center, flex-start, 1rem);
+
+    .links,
+    .actions {
+      @include mixins.useFlex(row, nowrap, center, flex-start, 0.5rem);
+    }
+
+    .links {
+      gap: 1rem;
+
+      a {
+        @include mixins.useButton();
+        font-size: 1rem;
+        font-weight: 500;
+        text-decoration: none;
+        color: colors.$textprimary;
+      }
+    }
+
+    .actions {
+      gap: 0.875rem;
+
+      button {
+        @include mixins.useButton();
+      }
+
+      .logout {
+        height: 2.5rem;
+        padding: 0 2rem;
+        border-radius: 2rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: colors.$primary;
+        background-color: colors.$textprimary;
+      }
+
+      ._action {
+        @include mixins.useFlex(row, nowrap, center, center, 0);
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        background-color: colors.$divider;
+      }
+    }
+  }
+}

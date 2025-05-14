@@ -1,0 +1,81 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#verifyhashes,
+#networkactivity {
+  @include mixins.useFlex(row, nowrap, flex-start, space-between, 0);
+
+  .form {
+    @include mixins.useFlex(column, nowrap, center, flex-start, 0);
+    width: 45%;
+    padding-bottom: 1rem;
+    border: 1px solid colors.$divider;
+    border-radius: 0.5rem;
+
+    .title {
+      width: 90%;
+      padding-top: 1rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      text-align: left;
+    }
+
+    .filters {
+      @include mixins.useFlex(row, nowrap, center, flex-start, 0.5rem);
+      width: 100%;
+      margin-top: 0.5rem;
+      padding: 0 1rem;
+
+      button {
+        @include mixins.useButton();
+        @include mixins.useBaseFont();
+        padding: 0.5rem 1rem;
+        border-bottom: 2px solid transparent;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+
+      .active {
+        border-bottom-color: colors.$accent;
+      }
+    }
+  }
+
+  .verifier {
+    width: 45%;
+    min-height: 20rem;
+    padding: 1rem;
+    padding-top: unset;
+    border: 1px solid colors.$divider;
+    border-radius: 0.5rem;
+
+    p {
+      margin-top: 1rem;
+      font-weight: 400;
+      word-wrap: break-word;
+
+      span {
+        font-weight: bold;
+      }
+    }
+
+    .type {
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+  }
+}
+
+#networkactivity {
+  p {
+    width: 90%;
+    margin-top: 0.5rem;
+    text-align: left;
+    font-weight: 500;
+    word-wrap: break-word;
+
+    span {
+      font-weight: 300;
+    }
+  }
+}

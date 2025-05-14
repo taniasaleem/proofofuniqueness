@@ -1,0 +1,129 @@
+#createtoken {
+  .form {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    .title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+  }
+
+  .token-status {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #2c3e50;
+    }
+
+    .token-info {
+      p {
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+        color: #495057;
+
+        strong {
+          color: #2c3e50;
+          margin-right: 0.5rem;
+        }
+      }
+    }
+  }
+
+  .confirmation-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+
+    .dialog-content {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+      h3 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #2c3e50;
+      }
+
+      .token-details {
+        margin-bottom: 1.5rem;
+        
+        p {
+          margin: 0.5rem 0;
+          font-size: 0.9rem;
+          color: #495057;
+
+          strong {
+            color: #2c3e50;
+            margin-right: 0.5rem;
+          }
+        }
+      }
+
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+
+        button {
+          padding: 0.5rem 1.5rem;
+          border-radius: 4px;
+          font-size: 0.9rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s ease;
+
+          &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+          }
+
+          &.cancel-btn {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            color: #495057;
+
+            &:hover:not(:disabled) {
+              background: #e9ecef;
+            }
+          }
+
+          &.confirm-btn {
+            background: #007bff;
+            border: 1px solid #007bff;
+            color: #fff;
+
+            &:hover:not(:disabled) {
+              background: #0056b3;
+              border-color: #0056b3;
+            }
+          }
+        }
+      }
+    }
+  }
+} 

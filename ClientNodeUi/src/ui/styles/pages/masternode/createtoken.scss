@@ -1,0 +1,27 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#createtoken {
+  @include mixins.useFlex(row, nowrap, center, center, 0);
+  margin-bottom: 4rem;
+
+  .form {
+    width: 45%;
+    padding: 2rem;
+    border: 1px solid colors.$divider;
+    border-radius: 0.5rem;
+
+    .title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .inputlabel {
+      display: inline-block;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+  }
+}

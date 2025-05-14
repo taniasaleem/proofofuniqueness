@@ -1,0 +1,26 @@
+@use "./constants/colors" as colors;
+@use "./constants/mixins" as mixins;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -ms-overflow-style: none;
+  scrollbar-width: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @include mixins.useBaseFont();
+  background-color: colors.$primary;
+  color: colors.$textprimary;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

@@ -1,0 +1,27 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#applayout {
+  width: 100vw;
+  height: 100vh;
+
+  .pagewithsidenav {
+    @include mixins.useFlex(row, nowrap, flex-end, flex-end, 0);
+    height: calc(100vh - 3.875rem);
+    margin-top: 3.875rem;
+
+    #content {
+      width: calc(100% - 22.25rem);
+      height: 100%;
+      position: fixed;
+      top: 3.875rem;
+      right: 0;
+      padding: 2rem;
+      overflow-y: auto;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+  }
+}

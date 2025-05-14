@@ -1,0 +1,43 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#masternode {
+  .title {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .nodes_ctr {
+    width: 100%;
+
+    tr {
+      text-align: left;
+
+      th {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid colors.$divider;
+      }
+
+      td {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid colors.$divider;
+        font-weight: 500;
+      }
+
+      #network,
+      #balance {
+        font-weight: bold;
+      }
+
+      #walletname,
+      #address,
+      #datetime {
+        color: colors.$textsecondary;
+      }
+    }
+
+    .table_row {
+      cursor: pointer;
+    }
+  }
+}

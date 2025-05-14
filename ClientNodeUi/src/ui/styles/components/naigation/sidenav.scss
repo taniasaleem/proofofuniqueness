@@ -1,0 +1,92 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+.sidenav {
+  @include mixins.useFlex(column, nowrap, flex-start, space-between, 0);
+  position: fixed;
+  left: 0;
+  width: 22rem;
+  height: calc(100vh - 3.875rem);
+  padding: 2rem;
+
+  .layer {
+    ._dai {
+      @include mixins.useFlex(row, nowrap, center, flex-start, 0.375rem);
+
+      img {
+        width: 2rem;
+        height: 2rem;
+        object-fit: contain;
+        object-position: center;
+      }
+
+      p {
+        @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0);
+        font-size: 1.25rem;
+        font-weight: 500;
+
+        span {
+          font-size: 0.875rem;
+          font-weight: 400;
+          color: colors.$textsecondary;
+        }
+      }
+    }
+
+    .navlinks {
+      @include mixins.useFlex(column, nowrap, flex-start, flex-start, 1rem);
+      margin-top: 1rem;
+
+      a {
+        @include mixins.useFlex(row, nowrap, center, flex-start, 0.5rem);
+        @include mixins.useButton();
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 2rem;
+        text-decoration: none;
+        color: colors.$textprimary;
+        font-weight: 500;
+        transition: all ease-in-out 0.25s;
+
+        &:hover {
+          background-color: colors.$divider;
+        }
+      }
+
+      .currpage {
+        background-color: colors.$divider;
+      }
+
+      .sublinks {
+        @include mixins.useFlex(column, nowrap, flex-start, flex-start, 1rem);
+        width: 100%;
+        padding: 0.25rem;
+        padding-left: 2rem;
+
+        button {
+          @include mixins.useButton();
+          @include mixins.useBaseFont();
+          padding: 0.375rem;
+          font-size: 0.875rem;
+          font-weight: 400;
+        }
+
+        .currsublink {
+          font-weight: bold;
+        }
+      }
+    }
+  }
+
+  .start_node {
+    @include mixins.useButton();
+    @include mixins.useBaseFont();
+    width: 100%;
+    padding: 0.75rem 0;
+    border-radius: 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: colors.$primary;
+    background-color: colors.$textprimary;
+  }
+}

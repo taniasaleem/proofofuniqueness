@@ -1,0 +1,257 @@
+import { JSX, useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { AppLayout } from "../../components/layout/AppLayout";
+import { HorizontalDivider } from "../../components/global/Divider";
+import { TextInput, MultiLineTextInput } from "../../components/global/Inputs";
+import { SubmitButton } from "../../components/global/Buttons";
+import { useSnackbar } from "../../hooks/snackbar";
+import { Blockchain, NodeToken, MasterNode } from "../node-token-implementation";
+import { blockchainAPI } from "../../utils/api/websocket";
+import { WS_MESSAGE_TYPES } from "../../utils/api/config";
+import "../../styles/pages/masternode/createtoken.scss";
+
+// Initialize blockchain and master node
+const localBlockchain = new Blockchain();
+const masterNode = new MasterNode(localBlockchain);
+
+export default function CreateToken(): JSX.Element {
+  const { showerrorsnack, showsuccesssnack } = useSnackbar();
+
+  const [nodeName, setNodeName] = useState<string>("");
+  const [txDateTime, setTxDateTime] = useState<string>("");
+  const [nodeSerial, setNodeSerial] = useState<string>("");
+  const [type, setType] = useState<string>("");
+  const [nodeType, setNodeType] = useState<string>("S");
+  const [address, setAddress] = useState<string>("");
+  const [privateKey, setPrivateKey] = useState<string>("");
+  const [generatedToken, setGeneratedToken] = useState<NodeToken | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [tempToken, setTempToken] = useState<NodeToken | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>("");
+  const [isNodeActive, setIsNodeActive] = useState(false);
+
+  // Monitor WebSocket connection status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const isConnected = await blockchainAPI.isConnected();
+        if (!isConnected) {
+          showerrorsnack("WebSocket connection not available. Please try again later.");
+        }
+      } catch (error) {
+        console.error('Connection check error:', error);
+      }
+    };
+    checkConnection();
+  }, [showerrorsnack]);
+
+  const generateToken = () => {
+    try {
+      if (!nodeSerial || !txDateTime || !type) {
+        showerrorsnack("Please fill in all required fields");
+        return;
+      }
+
+      // Create a new NodeToken
+      const token = new NodeToken(
+        nodeSerial,
+        type,
+        new Date(txDateTime).getTime(),
+        nodeType
+      );
+
+      // Sign the token with the master node's key
+      token.signToken(masterNode.masterKeyPair);
+
+      setTempToken(token);
+      setShowConfirmation(true);
+    } catch (error) {
+      showerrorsnack(`Error generating token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleConfirmToken = async () => {
+    if (!tempToken) return;
+
+    setGeneratedToken(tempToken);
+    setShowConfirmation(false);
+    setIsVerifying(true);
+    setVerificationStatus("Verifying token...");
+
+    try {
+      // Register the token hash with the WebSocket server
+      await blockchainAPI.sendMessage(WS_MESSAGE_TYPES.REGISTER_TOKEN_HASH, {
+        serialNumber: nodeSerial,
+        hash: tempToken.tokenHash
+      });
+
+      // Add the node identity
+      await blockchainAPI.addNode({
+        address,
+        privateKey,
+        nodeName,
+        nodeType,
+        serialNumber: nodeSerial
+      });
+
+      // Verify the token
+      const isValid = tempToken.isValid(masterNode.masterPublicKey);
+      setIsNodeActive(isValid);
+      setVerificationStatus(isValid ? "Token verified successfully" : "Token verification failed");
+
+      // Clear form
+      setNodeName("");
+      setTxDateTime("");
+      setNodeSerial("");
+      setType("");
+      setNodeType("S");
+      setAddress("");
+      setPrivateKey("");
+      
+      showsuccesssnack("Token created and verified successfully");
+    } catch (error) {
+      showerrorsnack("Failed to create token, please try again");
+      setVerificationStatus("Verification failed");
+      throw error;
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleCancelToken = () => {
+    setTempToken(null);
+    setShowConfirmation(false);
+    showerrorsnack("Token generation cancelled");
+  };
+
+  return (
+    <AppLayout>
+      <section id="createtoken">
+        <div className="form">
+          <p className="title">Verify Your Identity</p>
+
+          <HorizontalDivider sx={{ marginTop: "1rem" }} />
+
+          <TextInput
+            muiLabel="Node Name"
+            placeholder="Enter node name"
+            inputType="text"
+            inputValue={nodeName}
+            setInputValue={setNodeName}
+          />
+
+          <TextInput
+            muiLabel="Transaction DateTime"
+            placeholder="Enter transaction datetime"
+            inputType="datetime-local"
+            inputValue={txDateTime}
+            setInputValue={setTxDateTime}
+          />
+
+          <TextInput
+            muiLabel="Node Serial"
+            placeholder="Enter node serial"
+            inputType="text"
+            inputValue={nodeSerial}
+            setInputValue={setNodeSerial}
+          />
+
+          <TextInput
+            muiLabel="Type"
+            placeholder="Enter type"
+            inputType="text"
+            inputValue={type}
+            setInputValue={setType}
+          />
+
+          <TextInput
+            muiLabel="Node Type"
+            placeholder="Enter node type"
+            inputType="text"
+            inputValue={nodeType}
+            setInputValue={setNodeType}
+          />
+
+          <TextInput
+            muiLabel="Address"
+            placeholder="0x123..."
+            inputType="text"
+            inputValue={address}
+            setInputValue={setAddress}
+          />
+
+          <MultiLineTextInput
+            muiLabel="Private Key"
+            placeholder="private key"
+            inputType="text"
+            inputValue={privateKey}
+            setInputValue={setPrivateKey}
+          />
+
+          <SubmitButton
+            btnText={isVerifying ? "Verifying..." : "Create"}
+            isDisabled={
+              nodeName === "" ||
+              txDateTime === "" ||
+              nodeSerial === "" ||
+              type === "" ||
+              nodeType === "" ||
+              address === "" ||
+              privateKey === "" ||
+              isVerifying
+            }
+            onClickBtn={generateToken}
+            xstyles={{ marginTop: "1rem" }}
+          />
+
+          {/* Token Status Display */}
+          {generatedToken && (
+            <div className="token-status">
+              <h3>Token Status</h3>
+              <div className="token-info">
+                <p><strong>Token Hash:</strong> {generatedToken.tokenHash}</p>
+                <p><strong>Status:</strong> {isNodeActive ? "✓ Active" : "✗ Inactive"}</p>
+                <p><strong>Verification:</strong> {verificationStatus}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Confirmation Dialog */}
+        {showConfirmation && (
+          <div className="confirmation-dialog">
+            <div className="dialog-content">
+              <h3>Confirm Token</h3>
+              <div className="token-details">
+                <p><strong>Serial Number:</strong> {nodeSerial}</p>
+                <p><strong>Type:</strong> {type}</p>
+                <p><strong>Node Type:</strong> {nodeType}</p>
+                <p><strong>Generated Hash:</strong> {tempToken?.tokenHash}</p>
+              </div>
+              <div className="dialog-actions">
+                <button 
+                  className="cancel-btn" 
+                  onClick={handleCancelToken}
+                  disabled={isVerifying}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="confirm-btn" 
+                  onClick={handleConfirmToken}
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? "Verifying..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </AppLayout>
+  );
+}
+
+
+

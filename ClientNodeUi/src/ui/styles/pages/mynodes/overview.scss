@@ -1,0 +1,51 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+#mynode_overview {
+  @include mixins.useFlex(row, nowrap, flex-start, space-between, 0);
+
+  .content_ctr {
+    border: 1px solid colors.$divider;
+    border-radius: 0.275rem;
+
+    .title {
+      padding: 1rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+  }
+
+  .nodeinfo {
+    width: 55%;
+
+    .info_ctr {
+      @include mixins.useFlex(row, nowrap, center, flex-start, 3rem);
+      padding: 1rem;
+      border-bottom: 1px solid colors.$divider;
+      font-size: 0.875rem;
+      font-weight: bold;
+
+      span {
+        font-weight: 500;
+        color: colors.$textsecondary;
+      }
+
+      .status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-weight: 700;
+        color: colors.$primary;
+        background-color: colors.$success;
+      }
+    }
+
+    .final {
+      border-bottom: 0;
+    }
+  }
+
+  .messages {
+    width: 42%;
+    min-height: 30rem;
+  }
+}

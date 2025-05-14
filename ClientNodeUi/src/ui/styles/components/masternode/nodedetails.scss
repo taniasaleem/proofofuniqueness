@@ -1,0 +1,25 @@
+@use "../../constants/colors" as colors;
+@use "../../constants/mixins" as mixins;
+
+.node_details {
+  width: 100%;
+  min-height: 100%;
+  padding: 1rem;
+
+  .det_title {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .desc {
+    @include mixins.useFlex(column, nowrap, flex-start, flex-start, 0.25rem);
+    margin-bottom: 1rem;
+    font-weight: bold;
+
+    span {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: colors.$textsecondary;
+    }
+  }
+}
