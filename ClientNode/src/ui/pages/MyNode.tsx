@@ -3,7 +3,7 @@ import { AppLayout } from "../components/layout/AppLayout";
 import { HorizontalDivider } from "../components/global/Divider";
 import "../styles/pages/mynodes/overview.scss";
 import { Blockchain, Node, NodeToken } from "./node-token-implementation";
-import { useTokenHash } from "../../../../MAsterNodeUi/src/ui/hooks/useTokenHash";
+import { useTokenHash } from "../../../../MasterNode/src/ui/hooks/useTokenHash";
 
 export default function MyNode(): JSX.Element {
   // Initialize blockchain and node (simulate single user node for this UI)

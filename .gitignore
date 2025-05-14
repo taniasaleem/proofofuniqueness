@@ -14,79 +14,22 @@
 /temp
 /cache
 
-/MAsterNodeUi/node_modules
-/MAsterNodeUi/dist
-/MAsterNodeUi/build
-/MAsterNodeUi/coverage
-/MAsterNodeUi/logs
-/MAsterNodeUi/temp
-/MAsterNodeUi/cache
+/MasterNode/node_modules
+/MasterNode/dist
+/MasterNode/build
+/MasterNode/coverage
+/MasterNode/logs
+/MasterNode/temp
+/MasterNode/cache
 
-/ClientNodeUi/node_modules
-/ClientNodeUi/dist
-/ClientNodeUi/build
-/ClientNodeUi/coverage
-/ClientNodeUi/logs
-/ClientNodeUi/temp
-/ClientNodeUi/cache
+/ClientNode/node_modules
+/ClientNode/dist
+/ClientNode/build
+/ClientNode/coverage
+/ClientNode/logs
+/ClientNode/temp
+/ClientNode/cache
 
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-package-lock.json
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.venv
-venv
-
-# outputs
-build*
-
-# MAsterNodeUi specific
-/MAsterNodeUi/logs
-/MAsterNodeUi/*.log
-/MAsterNodeUi/npm-debug.log*
-/MAsterNodeUi/yarn-debug.log*
-/MAsterNodeUi/yarn-error.log*
-/MAsterNodeUi/pnpm-debug.log*
-/MAsterNodeUi/lerna-debug.log*
-
-/MAsterNodeUi/dist-ssr
-/MAsterNodeUi/*.local
-/MAsterNodeUi/package-lock.json
-
-/MAsterNodeUi/.vscode/*
-!/MAsterNodeUi/.vscode/extensions.json
-/MAsterNodeUi/.idea
-/MAsterNodeUi/*.suo
-/MAsterNodeUi/*.ntvs*
-/MAsterNodeUi/*.njsproj
-/MAsterNodeUi/*.sln
-/MAsterNodeUi/*.sw?
-/MAsterNodeUi/.venv
-/MAsterNodeUi/venv
-
-/MAsterNodeUi/build*
 
 # Logs
 logs
@@ -119,28 +62,85 @@ venv
 # outputs
 build*
 
-# ClientNodeUi specific
-/ClientNodeUi/logs
-/ClientNodeUi/*.log
-/ClientNodeUi/npm-debug.log*
-/ClientNodeUi/yarn-debug.log*
-/ClientNodeUi/yarn-error.log*
-/ClientNodeUi/pnpm-debug.log*
-/ClientNodeUi/lerna-debug.log*
+# MasterNode specific
+/MasterNode/logs
+/MasterNode/*.log
+/MasterNode/npm-debug.log*
+/MasterNode/yarn-debug.log*
+/MasterNode/yarn-error.log*
+/MasterNode/pnpm-debug.log*
+/MasterNode/lerna-debug.log*
 
-/ClientNodeUi/dist-ssr
-/ClientNodeUi/*.local
-/ClientNodeUi/package-lock.json
+/MasterNode/dist-ssr
+/MasterNode/*.local
+/MasterNode/package-lock.json
 
-/ClientNodeUi/.vscode/*
-!/ClientNodeUi/.vscode/extensions.json
-/ClientNodeUi/.idea
-/ClientNodeUi/*.suo
-/ClientNodeUi/*.ntvs*
-/ClientNodeUi/*.njsproj
-/ClientNodeUi/*.sln
-/ClientNodeUi/*.sw?
-/ClientNodeUi/.venv
-/ClientNodeUi/venv
+/MasterNode/.vscode/*
+!/MasterNode/.vscode/extensions.json
+/MasterNode/.idea
+/MasterNode/*.suo
+/MasterNode/*.ntvs*
+/MasterNode/*.njsproj
+/MasterNode/*.sln
+/MasterNode/*.sw?
+/MasterNode/.venv
+/MasterNode/venv
 
-/ClientNodeUi/build*
+/MasterNode/build*
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+package-lock.json
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.venv
+venv
+
+# outputs
+build*
+
+# ClientNode specific
+/ClientNode/logs
+/ClientNode/*.log
+/ClientNode/npm-debug.log*
+/ClientNode/yarn-debug.log*
+/ClientNode/yarn-error.log*
+/ClientNode/pnpm-debug.log*
+/ClientNode/lerna-debug.log*
+
+/ClientNode/dist-ssr
+/ClientNode/*.local
+/ClientNode/package-lock.json
+
+/ClientNode/.vscode/*
+!/ClientNode/.vscode/extensions.json
+/ClientNode/.idea
+/ClientNode/*.suo
+/ClientNode/*.ntvs*
+/ClientNode/*.njsproj
+/ClientNode/*.sln
+/ClientNode/*.sw?
+/ClientNode/.venv
+/ClientNode/venv
+
+/ClientNode/build*
