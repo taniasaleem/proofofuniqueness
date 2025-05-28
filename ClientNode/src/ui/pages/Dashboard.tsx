@@ -6,7 +6,6 @@ import { AppLayout } from "../components/layout/AppLayout";
 import { NodeStatus } from "../components/dashboard/NodeStatus";
 import { ActivityChart } from "../components/dashboard/ActivityChart";
 import { PerformanceChart } from "../components/dashboard/PerformanceChart";
-import { WebSocketConnection } from "../components/WebSocketConnection";
 import "../styles/pages/dashboard.scss";
 
 export default function Dashboard(): JSX.Element {
@@ -34,7 +33,6 @@ export default function Dashboard(): JSX.Element {
           </span>
         </p>
 
-        <WebSocketConnection />
 
         <div className="stats">
           <NodeStatus title="Node Status" value="Soft Node Running" />

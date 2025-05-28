@@ -1,4 +1,5 @@
-import { BASEURL, WALLET_ENDPOINTS } from "./config";
+import { blockchainAPI } from './p2p';
+import { P2P_MESSAGE_TYPES } from './config';
 
 export type walletstatus = {
   address: string;
@@ -23,35 +24,13 @@ export const getWallets = async (): Promise<{
   count: number;
   wallets: wallettype[];
 }> => {
-  const URL = BASEURL + WALLET_ENDPOINTS.allwallets;
-
-  const res = await fetch(URL, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-  return res.json();
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.GET_WALLETS, {});
 };
 
-export const getWalletStatus = async (
-  address: string
-): Promise<walletstatus> => {
-  const URL = BASEURL + WALLET_ENDPOINTS.walletstatus + address;
-
-  const res = await fetch(URL, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  return res.json();
+export const getWalletStatus = async (address: string): Promise<walletstatus> => {
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.GET_WALLET_STATUS, { address });
 };
 
 export const createWallet = async (): Promise<createwallettres> => {
-  const URL = BASEURL + WALLET_ENDPOINTS.createwallet;
-
-  const res = await fetch(URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  return res.json();
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.CREATE_WALLET, {});
 };

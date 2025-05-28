@@ -1,8 +1,6 @@
-export const BASEURL = "ws://localhost:8080"; // Local WebSocket server
-export const MASTERNODE_BASEURL = "ws://localhost:8080/master"; // Local WebSocket server for master node
 
-// WebSocket message types
-export const WS_MESSAGE_TYPES = {
+// P2P message types
+export const P2P_MESSAGE_TYPES = {
   // Node Management
   GET_NODES: 'get-nodes',
   NODES_RESPONSE: 'nodes-response',
@@ -14,18 +12,23 @@ export const WS_MESSAGE_TYPES = {
   TOKEN_HASH_REGISTERED: 'token-hash-registered',
   VERIFY_TOKEN_HASH: 'verify-token-hash',
   TOKEN_HASH_VERIFICATION: 'token-hash-verification',
+  GET_TOKENS: 'get-tokens',
+  TOKENS_RESPONSE: 'tokens-response',
   
   // Chain Operations
   GET_CHAIN_INFO: 'get-chain-info',
   CHAIN_INFO: 'chain-info',
   GET_SUPPLY_INFO: 'get-supply-info',
   SUPPLY_INFO: 'supply-info',
+  CHOOSE_PROPOSER: 'choose-proposer',
   
   // Transaction Operations
   CREATE_TRANSACTION: 'create-transaction',
   TRANSACTION_CREATED: 'transaction-created',
   GET_BALANCE: 'get-balance',
   BALANCE_RESPONSE: 'balance-response',
+  VERIFY_TRANSACTION: 'verify-transaction',
+  TRANSACTION_VERIFICATION: 'transaction-verification',
   
   // Block Operations
   VERIFY_BLOCK: 'verify-block',
@@ -33,7 +36,15 @@ export const WS_MESSAGE_TYPES = {
   
   // Node Synchronization
   SYNC_NODES: 'sync-nodes',
-  SYNC_COMPLETE: 'sync-complete'
+  SYNC_COMPLETE: 'sync-complete',
+
+  // Wallet Operations
+  GET_WALLETS: 'get-wallets',
+  WALLETS_RESPONSE: 'wallets-response',
+  GET_WALLET_STATUS: 'get-wallet-status',
+  WALLET_STATUS_RESPONSE: 'wallet-status-response',
+  CREATE_WALLET: 'create-wallet',
+  WALLET_CREATED: 'wallet-created'
 };
 
 export const TX_ENDPOINTS = {

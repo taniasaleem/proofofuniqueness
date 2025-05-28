@@ -15,7 +15,7 @@ import MyNodeSettings from "./pages/mynode/Settings";
 import CreateWallet from "./pages/mywallets/CreateWallet";
 import MyWalletLedgers from "./pages/mywallets/Ledgers";
 import Messages from "./pages/masternode/Messages";
-import NodeManager from "./pages/NodeManager";
+import {NodeManager} from "./pages/NodeManager";
 import { AppDrawer } from "./components/global/Appdrawer";
 import { SnackBar } from "./components/global/SnackBar";
 

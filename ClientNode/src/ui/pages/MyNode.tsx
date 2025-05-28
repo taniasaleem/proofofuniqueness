@@ -1,32 +1,32 @@
-import { JSX, useEffect, useState } from "react";
+import { useState, useEffect } from 'react';
 import { AppLayout } from "../components/layout/AppLayout";
 import { HorizontalDivider } from "../components/global/Divider";
 import "../styles/pages/mynodes/overview.scss";
-import { Blockchain, Node, NodeToken } from "./node-token-implementation";
-import { useTokenHash } from "../../../../MasterNode/src/ui/hooks/useTokenHash";
+import { Blockchain, Node } from "./node-token-implementation";
+import { useP2P } from '../hooks/useP2P';
 
-export default function MyNode(): JSX.Element {
+export default function MyNode() {
   // Initialize blockchain and node (simulate single user node for this UI)
   const [node] = useState(() => new Node(new Blockchain()));
-  const [nodeToken, setNodeToken] = useState<NodeToken | null>(null);
   const [creationDate, setCreationDate] = useState<string>("");
   const [lastUpdated, setLastUpdated] = useState<string>("");
-  const [status, setStatus] = useState<string>("Started");
+  const [status, setStatus] = useState<string>("Pending");
   const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
   const [region] = useState<string>("AWS: US-east-2");
   const [wallet, setWallet] = useState<string>("");
 
   // Use the token hash hook for real-time status
-  const {
-    getTokenHashData,
-    getTokenHash,
-    isConnected,
-    status: wsStatus,
-    processMessages
-  } = useTokenHash();
+  const { isConnected, getTokenHash, getTokenHashData } = useP2P();
 
   useEffect(() => {
-    processMessages();
+    if (isConnected) {
+      setStatus('Connected');
+    } else {
+      setStatus('Disconnected');
+    }
+  }, [isConnected]);
+
+  useEffect(() => {
     const serial = node.serialNumber;
     
     // Get token data from master node
@@ -42,7 +42,7 @@ export default function MyNode(): JSX.Element {
     }
     
     setConnectionStatus(isConnected ? "Connected" : "Disconnected");
-  }, [node, isConnected, processMessages, getTokenHash, getTokenHashData]);
+  }, [node, isConnected, getTokenHash, getTokenHashData]);
 
   return (
     <AppLayout>

@@ -1,5 +1,4 @@
-import { blockchainAPI } from './websocket';
-import { WS_MESSAGE_TYPES } from './config';
+import { blockchainAPI } from './p2p';
 
 export type nodetype = {
   address: string;

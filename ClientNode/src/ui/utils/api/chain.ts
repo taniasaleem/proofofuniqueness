@@ -1,4 +1,5 @@
-import { BASEURL, CHAIN_ENDPOINTS } from "./config";
+import { blockchainAPI } from './p2p';
+import { P2P_MESSAGE_TYPES } from './config';
 
 export type chainsupply = {
   maxSupply: number;
@@ -24,46 +25,17 @@ export type syncres = {
 export const chooseBlockProposer = async (
   address: string
 ): Promise<{ message: string }> => {
-  const URL = BASEURL + CHAIN_ENDPOINTS.chooseproposer;
-
-  const res = await fetch(URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address }),
-  });
-
-  return res.json();
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.CHOOSE_PROPOSER, { address });
 };
 
 export const getChainSupplyInfo = async (): Promise<chainsupply> => {
-  const URL = BASEURL + CHAIN_ENDPOINTS.getsupply;
-
-  const res = await fetch(URL, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  return res.json();
+  return blockchainAPI.getSupplyInfo();
 };
 
 export const getChainInfo = async (): Promise<chaininfo> => {
-  const URL = BASEURL + CHAIN_ENDPOINTS.chaininfo;
-
-  const res = await fetch(URL, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  return res.json();
+  return blockchainAPI.getChainInfo();
 };
 
 export const syncWithNodes = async (peerUrl: string): Promise<syncres> => {
-  const URL = BASEURL + CHAIN_ENDPOINTS.syncnodes;
-
-  const res = await fetch(URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ peerUrl }),
-  });
-  return res.json();
+  return blockchainAPI.syncWithNodes(peerUrl);
 };

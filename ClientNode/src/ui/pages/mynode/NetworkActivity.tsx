@@ -27,6 +27,25 @@ export default function NetworkActivity(): JSX.Element {
     }
   }, [chainInfo]);
 
+  // Helper function to safely format numbers
+  const formatNumber = (value: number | undefined | null): string => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '0';
+    }
+    return value.toString();
+  };
+
+  // Helper function to safely calculate transaction total
+  const calculateTransactionTotal = (transactions: any[] | undefined): number => {
+    if (!transactions || !Array.isArray(transactions)) {
+      return 0;
+    }
+    return transactions.reduce((total, tx) => {
+      const amount = Number(tx?.amount) || 0;
+      return total + amount;
+    }, 0);
+  };
+
   return (
     <AppLayout>
       <section id="networkactivity">
@@ -34,24 +53,24 @@ export default function NetworkActivity(): JSX.Element {
           <p className="title">Network Activity</p>
           <HorizontalDivider />
           <p>
-            Latest Block Hash: <span>{chainInfo?.latestBlockHash}</span>
+            Latest Block Hash: <span>{chainInfo?.latestBlockHash || '-'}</span>
           </p>
           <p>
-            Block No: <span>{chainInfo?.height}</span>
+            Block No: <span>{formatNumber(chainInfo?.height)}</span>
           </p>
 
           {!latesthashpending && (
             <>
               <p>
                 Total Transactions:&nbsp;
-                <span>{latestblockhash?.data?.transactionCount}</span>
+                <span>{formatNumber(latestblockhash?.data?.transactionCount)}</span>
               </p>
               <p>
                 No Of Attending Nodes:&nbsp;
-                <span>{(chainInfo?.peers as number) + 1}</span>
+                <span>{formatNumber((chainInfo?.peers as number) + 1)}</span>
               </p>
               <p>
-                No Of Approvals: <span>{(chainInfo?.peers as number) + 1}</span>
+                No Of Approvals: <span>{formatNumber((chainInfo?.peers as number) + 1)}</span>
               </p>
               <p>
                 No Of Flagged Nodes: <span>0</span>
@@ -59,10 +78,7 @@ export default function NetworkActivity(): JSX.Element {
               <p>
                 Transacted DAI Coins:&nbsp;
                 <span>
-                  {latestblockhash?.data?.transactions?.reduce(
-                    (a, b) => a + b?.amount,
-                    0
-                  )}
+                  {formatNumber(calculateTransactionTotal(latestblockhash?.data?.transactions))}
                 </span>
               </p>
             </>

@@ -1,6 +1,7 @@
-import { BASEURL, TOKENS_ENDPOINT } from "./config";
+import { blockchainAPI } from './p2p';
+import { P2P_MESSAGE_TYPES } from './config';
 
-type tokentype = {
+export type tokentype = {
   id: string;
   value: number;
   hash: string;
@@ -12,11 +13,5 @@ export const getAllTokens = async (): Promise<{
   count: number;
   tokens: tokentype[];
 }> => {
-  const URL = BASEURL + TOKENS_ENDPOINT.alltokens;
-
-  const res = await fetch(URL, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
-  return res.json();
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.GET_TOKENS, {});
 };
