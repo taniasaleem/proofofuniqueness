@@ -1,24 +1,17 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { wsService } from '../utils/api/websocket';
+import { p2pService, blockchainAPI } from '../utils/api/p2p';
+import { IpcRenderer, ElectronAPI } from '../utils/api/types';
 
-interface WebSocketMessage {
+interface P2PMessage {
   type: string;
   data: any;
   timestamp: number;
-  clientId: string;
-}
-
-interface IpcRenderer {
-  send: (channel: string, data: any) => void;
-  on: (channel: string, func: (...args: any[]) => void) => void;
-  removeListener: (channel: string, func: (...args: any[]) => void) => void;
+  peerId: string;
 }
 
 declare global {
   interface Window {
-    electron?: {
-      ipcRenderer: IpcRenderer;
-    };
+    electron?: ElectronAPI;
   }
 }
 
@@ -27,14 +20,13 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 1000; // 1 second
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const ELECTRON_API_CHECK_INTERVAL = 1000; // Check every second
-const WS_PORT = 8080; // Default WebSocket port
 
-export const useWebSocket = () => {
-  const [connectedClients, setConnectedClients] = useState<string[]>([]);
-  const [messages, setMessages] = useState<WebSocketMessage[]>([]);
+export const useP2P = () => {
+  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [messages, setMessages] = useState<P2PMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState<string>('Initializing...');
-  const [clientId, setClientId] = useState<string>('browser');
+  const [peerId, setPeerId] = useState<string>('');
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const lastMessageTimestampRef = useRef<number>(Date.now());
@@ -59,7 +51,7 @@ export const useWebSocket = () => {
     return true;
   }, []);
 
-  const getConnectedClients = useCallback(() => {
+  const getConnectedPeers = useCallback(() => {
     if (!checkElectronApi()) {
       console.warn('Electron API not available, retrying...');
       return;
@@ -67,21 +59,7 @@ export const useWebSocket = () => {
     
     // Send the request with retry logic
     const sendRequest = () => {
-      const requestId = Date.now();
-      
-      // Ensure message has required type field
-      const message = {
-        type: 'get-clients',
-        data: {
-          requestId,
-          port: WS_PORT,
-          timestamp: Date.now()
-        },
-        timestamp: Date.now(),
-        clientId: wsService.getClientId() || 'browser'
-      };
-
-      window.electron?.ipcRenderer.send('ws-get-clients', message);
+      window.electron?.ipcRenderer.send('p2p-get-peers', { type: 'get-peers' });
     };
 
     // Initial request
@@ -142,11 +120,11 @@ export const useWebSocket = () => {
       if (!isComponentMountedRef.current) return;
       
       reconnectAttemptsRef.current += 1;
-      getConnectedClients();
+      getConnectedPeers();
     }, delay);
-  }, [getConnectedClients]);
+  }, [getConnectedPeers]);
 
-  const addMessage = useCallback((message: WebSocketMessage) => {
+  const addMessage = useCallback((message: P2PMessage) => {
     setMessages(prev => {
       const newMessages = [...prev, message];
       return newMessages.slice(-MAX_MESSAGES);
@@ -162,7 +140,7 @@ export const useWebSocket = () => {
       if (checkElectronApi()) {
         setStatus('Connecting...');
         clearInterval(electronApiCheckIntervalRef.current!);
-        getConnectedClients();
+        getConnectedPeers();
         return true;
       }
       return false;
@@ -183,7 +161,7 @@ export const useWebSocket = () => {
         clearInterval(electronApiCheckIntervalRef.current);
       }
     };
-  }, [checkElectronApi, getConnectedClients]);
+  }, [checkElectronApi, getConnectedPeers]);
 
   useEffect(() => {
     if (!checkElectronApi()) {
@@ -195,11 +173,11 @@ export const useWebSocket = () => {
       return;
     }
 
-    // Request initial client list
-    getConnectedClients();
+    // Request initial peer list
+    getConnectedPeers();
 
     // Set up event listeners
-    const handleMessage = (message: WebSocketMessage) => {
+    const handleMessage = (message: P2PMessage) => {
       if (!isComponentMountedRef.current) return;
       
       // Validate message structure
@@ -213,22 +191,15 @@ export const useWebSocket = () => {
         return;
       }
 
-      // Handle connection message to get client ID
-      if (message.type === 'connection' && message.data?.clientId) {
-        console.log('[WebSocket] Setting client ID from connection message:', message.data.clientId);
-        setClientId(message.data.clientId);
-      }
-
       // Format the message with required fields
       const formattedMessage = {
         type: message.type,
         data: message.data || {},
         timestamp: message.timestamp || Date.now(),
-        clientId: message.clientId || wsService.getClientId() || 'browser'
+        peerId: message.peerId || peerId
       };
 
-      console.log('[WebSocket] Current client ID state:', clientId);
-      console.log('[WebSocket] Formatted message:', formattedMessage);
+      console.log('[P2P] Formatted message:', formattedMessage);
 
       addMessage(formattedMessage);
       
@@ -240,59 +211,58 @@ export const useWebSocket = () => {
       }
     };
 
-    const handleClientConnected = (clientId: string) => {
+    const handlePeerConnected = (peerId: string) => {
       if (!isComponentMountedRef.current) return;
-      console.log('[WebSocket] Client connected:', clientId);
-      setConnectedClients(prev => [...prev, clientId]);
-      setClientId(clientId); // Also update clientId when client connects
+      console.log('[P2P] Peer connected:', peerId);
+      setConnectedPeers(prev => [...prev, peerId]);
       setIsConnected(true);
       setStatus('Connected');
       reconnectAttemptsRef.current = 0;
     };
 
-    const handleClientDisconnected = (clientId: string) => {
+    const handlePeerDisconnected = (peerId: string) => {
       if (!isComponentMountedRef.current) return;
-      setConnectedClients(prev => prev.filter(id => id !== clientId));
+      setConnectedPeers(prev => prev.filter(id => id !== peerId));
       setIsConnected(false);
       setStatus('Disconnected');
       attemptReconnect();
     };
 
-    const handleClientsList = (clients: string[]) => {
+    const handlePeersList = (peers: string[]) => {
       if (!isComponentMountedRef.current) return;
-      setConnectedClients(clients);
-      const newConnectionStatus = clients.length > 0;
+      setConnectedPeers(peers);
+      const newConnectionStatus = peers.length > 0;
       setIsConnected(newConnectionStatus);
-      setStatus(newConnectionStatus ? 'Connected' : 'No clients connected');
+      setStatus(newConnectionStatus ? 'Connected' : 'No peers connected');
       if (newConnectionStatus) {
         reconnectAttemptsRef.current = 0;
       }
     };
 
-    const handleWebSocketError = (error: { message: string }) => {
+    const handleP2PError = (error: { message: string }) => {
       if (!isComponentMountedRef.current) return;
-      console.error('WebSocket error:', error);
+      console.error('P2P error:', error);
       setIsConnected(false);
       setStatus(error.message);
       attemptReconnect();
     };
 
     // Register event listeners
-    ipcRenderer.on('ws-message', handleMessage);
-    ipcRenderer.on('ws-client-connected', handleClientConnected);
-    ipcRenderer.on('ws-client-disconnected', handleClientDisconnected);
-    ipcRenderer.on('ws-clients-list', handleClientsList);
-    ipcRenderer.on('ws-error', handleWebSocketError);
+    ipcRenderer.on('p2p-message', handleMessage);
+    ipcRenderer.on('peer-connected', handlePeerConnected);
+    ipcRenderer.on('peer-disconnected', handlePeerDisconnected);
+    ipcRenderer.on('peers-list', handlePeersList);
+    ipcRenderer.on('p2p-error', handleP2PError);
 
     // Cleanup
     return () => {
-      ipcRenderer.removeListener('ws-message', handleMessage);
-      ipcRenderer.removeListener('ws-client-connected', handleClientConnected);
-      ipcRenderer.removeListener('ws-client-disconnected', handleClientDisconnected);
-      ipcRenderer.removeListener('ws-clients-list', handleClientsList);
-      ipcRenderer.removeListener('ws-error', handleWebSocketError);
+      ipcRenderer.removeListener('p2p-message', handleMessage);
+      ipcRenderer.removeListener('peer-connected', handlePeerConnected);
+      ipcRenderer.removeListener('peer-disconnected', handlePeerDisconnected);
+      ipcRenderer.removeListener('peers-list', handlePeersList);
+      ipcRenderer.removeListener('p2p-error', handleP2PError);
     };
-  }, [checkElectronApi, attemptReconnect, addMessage, getConnectedClients]);
+  }, [checkElectronApi, attemptReconnect, addMessage, getConnectedPeers]);
 
   const sendMessage = useCallback((data: any) => {
     if (!checkElectronApi()) {
@@ -305,17 +275,13 @@ export const useWebSocket = () => {
       return;
     }
 
-    console.log('[WebSocket] Current client ID before sending:', clientId);
-
     // Format the message with the correct structure
     const message = {
       type: data.type,
       data: data.data || {},
       timestamp: Date.now(),
-      clientId: wsService.getClientId() || clientId || 'browser'
+      peerId: peerId
     };
-
-    console.log('[WebSocket] Sending message with client ID:', message.clientId);
 
     // Validate message structure
     if (!message.type) {
@@ -324,28 +290,20 @@ export const useWebSocket = () => {
     }
 
     try {
-      window.electron?.ipcRenderer.send('ws-send', message);
+      window.electron?.ipcRenderer.send('p2p-send', message);
     } catch (error) {
-      console.error('Error sending WebSocket message:', error);
+      console.error('Error sending P2P message:', error);
       setStatus('Failed to send message');
     }
-  }, [checkElectronApi, clientId]);
-
-  useEffect(() => {
-    console.log('[WebSocket] Client ID changed:', clientId);
-  }, [clientId]);
-
-  useEffect(() => {
-    isComponentMountedRef.current = true;
-  }, []);
+  }, [checkElectronApi, peerId]);
 
   return {
-    connectedClients,
+    connectedPeers,
     messages,
     sendMessage,
-    getConnectedClients,
+    getConnectedPeers,
     isConnected,
     status,
-    clientId
+    peerId
   };
 }; 

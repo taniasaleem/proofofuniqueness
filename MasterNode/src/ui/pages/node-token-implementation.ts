@@ -1,5 +1,7 @@
 import CryptoJS from 'crypto-js';
 import * as EC from 'elliptic';
+import { IpcRenderer, ElectronAPI } from '../utils/api/types';
+
 const ec = new EC.ec('secp256k1');
 
 // Add type definition for KeyPair
@@ -352,19 +354,19 @@ class MasterNode extends Node {
     this.blockchain.masterNodePublicKey = this.masterPublicKey;
     this.nodeType = 'M';
     this.isActivated = true;
-    this.initializeIPC();
+    this.initializeP2P();
   }
 
-  private initializeIPC() {
-    // Set up IPC message handler
+  private initializeP2P() {
+    // Set up P2P message handler
     if (typeof window !== 'undefined' && window.electron) {
-      window.electron.ipcRenderer.on('ws-message', (_event: any, message: any) => {
-        this.handleWebSocketMessage(message);
+      window.electron.ipcRenderer.on('p2p-message', (_event: any, message: any) => {
+        this.handleP2PMessage(message);
       });
     }
   }
 
-  private handleWebSocketMessage(message: any) {
+  private handleP2PMessage(message: any) {
     switch (message.type) {
       case 'verify-token-hash':
         this.handleTokenHashVerification(message);
@@ -372,52 +374,73 @@ class MasterNode extends Node {
       case 'get-token-hash':
         this.handleTokenHashRequest(message);
         break;
+      case 'token-hash-created':
+        this.handleTokenHashCreated(message);
+        break;
       default:
         log(`Unknown message type: ${message.type}`, 'WARN');
     }
   }
 
   private handleTokenHashVerification(message: any) {
-    const { serialNumber, hash } = message;
+    const { serialNumber, hash } = message.data;
     const tokenData = this.tokenHashes.get(serialNumber);
     
     if (!tokenData) {
-      this.sendWebSocketMessage({
+      this.sendP2PMessage({
         type: 'token-hash-verification',
-        serialNumber,
-        isValid: false,
-        error: 'Token hash not found'
+        data: {
+          serialNumber,
+          isValid: false,
+          error: 'Token hash not found'
+        }
       });
       return;
     }
 
     const isValid = tokenData.hash === hash;
     if (isValid) {
-      tokenData.verifiedBy.push(message.verifiedBy || 'unknown');
+      tokenData.verifiedBy.push(message.peerId || 'unknown');
     }
 
-    this.sendWebSocketMessage({
+    this.sendP2PMessage({
       type: 'token-hash-verification',
-      serialNumber,
-      isValid,
-      verificationCount: tokenData.verifiedBy.length
+      data: {
+        serialNumber,
+        isValid,
+        verificationCount: tokenData.verifiedBy.length,
+        timestamp: Date.now()
+      }
     });
   }
 
   private handleTokenHashRequest(message: any) {
-    const { serialNumber } = message;
+    const { serialNumber } = message.data;
     const tokenData = this.tokenHashes.get(serialNumber);
     
-    this.sendWebSocketMessage({
+    this.sendP2PMessage({
       type: 'token-hash-response',
-      serialNumber,
-      data: tokenData || null
+      data: {
+        serialNumber,
+        data: tokenData || null,
+        timestamp: Date.now()
+      }
     });
   }
 
-  private sendWebSocketMessage(message: any) {
+  private handleTokenHashCreated(message: any) {
+    const { serialNumber, hash, timestamp } = message.data;
+    this.tokenHashes.set(serialNumber, {
+      hash,
+      timestamp,
+      verifiedBy: []
+    });
+    log(`Token hash registered for serial number: ${serialNumber}`, 'INFO');
+  }
+
+  private sendP2PMessage(message: any) {
     if (typeof window !== 'undefined' && window.electron) {
-      window.electron.ipcRenderer.send('ws-send', { data: message });
+      window.electron.ipcRenderer.send('p2p-send', message);
     } else {
       log('IPC not available', 'ERROR');
     }
@@ -427,7 +450,7 @@ class MasterNode extends Node {
     const nodeToken = new NodeToken(serialNumber, bankID, bankTimestamp, nodeType);
     nodeToken.signToken(this.masterKeyPair);
     
-    // Register the token hash with the WebSocket server
+    // Register the token hash with the P2P network
     this.registerTokenHash(serialNumber, nodeToken.tokenHash);
     
     return nodeToken;
@@ -441,12 +464,14 @@ class MasterNode extends Node {
       verifiedBy: []
     });
 
-    // Broadcast the token hash registration to all clients
-    this.sendWebSocketMessage({
-      type: 'token-hash-registered',
-      serialNumber,
-      hash,
-      timestamp: Date.now()
+    // Broadcast the token hash registration to the P2P network
+    this.sendP2PMessage({
+      type: 'token-hash-created',
+      data: {
+        serialNumber,
+        hash,
+        timestamp: Date.now()
+      }
     });
 
     log(`Token hash registered for serial number: ${serialNumber}`, 'INFO');
@@ -465,13 +490,7 @@ class MasterNode extends Node {
 // Add TypeScript interface for the window object
 declare global {
   interface Window {
-    electron?: {
-      ipcRenderer: {
-        send: (channel: string, data: any) => void;
-        on: (channel: string, func: (...args: any[]) => void) => void;
-        removeListener: (channel: string, func: (...args: any[]) => void) => void;
-      };
-    };
+    electron?: ElectronAPI;
   }
 }
 

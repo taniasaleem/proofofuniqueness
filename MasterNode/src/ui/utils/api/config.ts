@@ -1,37 +1,73 @@
-export const BASEURL = "ws://localhost:8080"; // Local WebSocket server
-export const MASTERNODE_BASEURL = "ws://localhost:8080/master"; // Local WebSocket server for master node
+// WebSocket message types
+export const P2P_MESSAGE_TYPES = {
+  // Connection
+  CONNECT: 'connect',
+  DISCONNECT: 'disconnect',
+  ERROR: 'error',
 
-// Remove all HTTPS endpoints and keep only WebSocket message types
-export const WS_MESSAGE_TYPES = {
   // Node Management
   GET_NODES: 'get-nodes',
   NODES_RESPONSE: 'nodes-response',
-  ADD_NODE: 'add-node',
-  NODE_ADDED: 'node-added',
-  
-  // Token Management
-  REGISTER_TOKEN_HASH: 'register-token-hash',
-  TOKEN_HASH_REGISTERED: 'token-hash-registered',
-  VERIFY_TOKEN_HASH: 'verify-token-hash',
-  TOKEN_HASH_VERIFICATION: 'token-hash-verification',
-  
+  NODE_CONNECTED: 'node-connected',
+  NODE_DISCONNECTED: 'node-disconnected',
+
   // Chain Operations
   GET_CHAIN_INFO: 'get-chain-info',
   CHAIN_INFO: 'chain-info',
   GET_SUPPLY_INFO: 'get-supply-info',
   SUPPLY_INFO: 'supply-info',
-  
+  SYNC_REQUEST: 'sync-request',
+  SYNC_RESPONSE: 'sync-response',
+
   // Transaction Operations
   CREATE_TRANSACTION: 'create-transaction',
   TRANSACTION_CREATED: 'transaction-created',
   GET_BALANCE: 'get-balance',
   BALANCE_RESPONSE: 'balance-response',
-  
+  VERIFY_TRANSACTION: 'verify-transaction',
+  TRANSACTION_VERIFIED: 'transaction-verified',
+
   // Block Operations
   VERIFY_BLOCK: 'verify-block',
-  BLOCK_VERIFICATION: 'block-verification',
+  BLOCK_VERIFIED: 'block-verified',
+
+  // Token Operations
+  VERIFY_TOKEN_HASH: 'verify-token-hash',
+  TOKEN_HASH_VERIFICATION: 'token-hash-verification',
+  TOKEN_HASH_CREATED: 'token-hash-created'
+} as const;
+
+// P2P Configuration
+export const P2P_CONFIG = {
+  // Connection settings
+  RECONNECT_INTERVAL: 5000, // 5 seconds
+  MAX_RECONNECT_ATTEMPTS: 5,
   
-  // Node Synchronization
-  SYNC_NODES: 'sync-nodes',
-  SYNC_COMPLETE: 'sync-complete'
-}; 
+  // Message settings
+  MESSAGE_TIMEOUT: 30000, // 30 seconds
+  MAX_MESSAGE_SIZE: 1024 * 1024, // 1MB
+  
+  // Peer settings
+  MAX_PEERS: 50,
+  MIN_PEERS: 3,
+  
+  // Discovery settings
+  DISCOVERY_INTERVAL: 60000, // 1 minute
+  BOOTSTRAP_NODES: [
+    // Add bootstrap nodes here if needed
+  ]
+} as const;
+
+// API Configuration
+export const API_CONFIG = {
+  // Rate limiting
+  RATE_LIMIT_WINDOW: 60000, // 1 minute
+  MAX_REQUESTS_PER_WINDOW: 100,
+  
+  // Timeouts
+  REQUEST_TIMEOUT: 30000, // 30 seconds
+  
+  // Retry settings
+  MAX_RETRIES: 3,
+  RETRY_DELAY: 1000 // 1 second
+} as const; 

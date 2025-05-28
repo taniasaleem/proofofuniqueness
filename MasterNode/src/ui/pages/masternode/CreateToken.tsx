@@ -10,8 +10,8 @@ import {
   NodeToken,
   MasterNode,
 } from "../node-token-implementation";
-import { blockchainAPI } from "../../utils/api/websocket";
-import { WS_MESSAGE_TYPES } from "../../utils/api/config";
+import { useP2P } from "../../hooks/useP2P";
+import { P2P_MESSAGE_TYPES } from "../../utils/api/config";
 import "../../styles/pages/masternode/createtoken.scss";
 
 // Initialize blockchain and master node
@@ -20,6 +20,7 @@ const masterNode = new MasterNode(localBlockchain);
 
 export default function CreateToken(): JSX.Element {
   const { showerrorsnack, showsuccesssnack } = useSnackbar();
+  const { sendMessage, isConnected, status } = useP2P();
 
   const [nodeName, setNodeName] = useState<string>("");
   const [txDateTime, setTxDateTime] = useState<string>("");
@@ -35,22 +36,14 @@ export default function CreateToken(): JSX.Element {
   const [verificationStatus, setVerificationStatus] = useState<string>("");
   const [isNodeActive, setIsNodeActive] = useState(false);
 
-  // Monitor WebSocket connection status
+  // Monitor P2P connection status
   useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const isConnected = await blockchainAPI.isConnected();
-        if (!isConnected) {
-          showerrorsnack(
-            "WebSocket connection not available. Please try again later."
-          );
-        }
-      } catch (error) {
-        console.error("Connection check error:", error);
-      }
-    };
-    checkConnection();
-  }, [showerrorsnack]);
+    if (!isConnected) {
+      showerrorsnack(
+        "P2P connection not available. Please try again later."
+      );
+    }
+  }, [isConnected, showerrorsnack]);
 
   const generateToken = () => {
     try {
@@ -90,20 +83,26 @@ export default function CreateToken(): JSX.Element {
     setVerificationStatus("Verifying token...");
 
     try {
-      // Register the token hash with the WebSocket server
-      await blockchainAPI.sendMessage(WS_MESSAGE_TYPES.REGISTER_TOKEN_HASH, {
-        serialNumber: nodeSerial,
-        hash: tempToken.tokenHash,
+      // Register the token hash with the P2P service
+      sendMessage({
+        type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
+        data: {
+          serialNumber: nodeSerial,
+          hash: tempToken.tokenHash,
+        },
       });
 
-      // Add the node identity
-      await blockchainAPI.addNode({
-        address,
-        privateKey,
-        nodeName,
-        nodeType,
-        serialNumber: nodeSerial,
-      });
+      // Add the node identity (if needed, you can send another P2P message here)
+      // sendMessage({
+      //   type: P2P_MESSAGE_TYPES.ADD_NODE,
+      //   data: {
+      //     address,
+      //     privateKey,
+      //     nodeName,
+      //     nodeType,
+      //     serialNumber: nodeSerial,
+      //   },
+      // });
 
       // Verify the token
       const isValid = tempToken.isValid(masterNode.masterPublicKey);
@@ -188,7 +187,7 @@ export default function CreateToken(): JSX.Element {
           <SubmitButton
             btnText={"Create"}
             isDisabled={!nodeSerial || !nodeType}
-            onClickBtn={() => {}}
+            onClickBtn={generateToken}
             xstyles={{ marginTop: "1rem" }}
           />
         </div>

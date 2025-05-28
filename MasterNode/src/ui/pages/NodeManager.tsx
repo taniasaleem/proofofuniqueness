@@ -70,10 +70,7 @@ const NodeManager = (): JSX.Element => {
   const [isNodeActive, setIsNodeActive] = useState(false);
   const [verificationResult, setVerificationResult] =
     useState<VerificationResult | null>(null);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [tokenHash, setTokenHash] = useState<string>("");
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
-  const [verificationStatus, setVerificationStatus] = useState<string>("");
 
   const {
     registerTokenHash,
@@ -83,18 +80,14 @@ const NodeManager = (): JSX.Element => {
     getVerificationResult,
     getVerificationStatus,
     isConnected,
-    status: wsStatus,
-    processMessages,
+    status: p2pStatus,
+    isLoading,
   } = useTokenHash();
-
-  // console.log("isConnected", isConnected);
-  // console.log("generatedToken", generatedToken);
 
   useEffect(() => {
     // Initialize any necessary setup
     log("Node Manager initialized");
-    processMessages();
-  }, [processMessages]);
+  }, []);
 
   const generateToken = () => {
     try {
@@ -133,7 +126,7 @@ const NodeManager = (): JSX.Element => {
     setStatus("Token confirmed and stored");
     setShowConfirmation(false);
 
-    // Register the token hash with the WebSocket server
+    // Register the token hash with the P2P network
     registerTokenHash(serialNumber, tempToken.tokenHash);
   };
 
@@ -149,19 +142,28 @@ const NodeManager = (): JSX.Element => {
       return;
     }
 
-    // if (!isConnected) {
-    //   setStatus(wsStatus || "WebSocket connection not available. Please try again later.");
-    //   console.error('WebSocket connection error:', wsStatus);
-    //   return;
-    // }
+    if (!isConnected) {
+      setStatus(p2pStatus || "P2P connection not available. Please try again later.");
+      console.error('P2P connection error:', p2pStatus);
+      return;
+    }
 
     setStatus("Verifying token...");
     try {
+      // First verify locally
       const isValid = generatedToken.isValid(masterNode.masterPublicKey);
+      
+      // Then verify through P2P network
+      verifyTokenHash(serialNumber, generatedToken.tokenHash);
+      
+      // Get verification result from P2P network
+      const result = getVerificationResult(serialNumber);
+      
       setVerificationResult({
-        valid: isValid,
-        verifiedBy: isValid ? 1 : 0,
+        valid: isValid && (result?.valid || false),
+        verifiedBy: result?.verifiedBy || 0
       });
+      
       setIsNodeActive(isValid);
       setStatus(
         isValid ? "Token verified successfully" : "Token verification failed"
@@ -174,153 +176,31 @@ const NodeManager = (): JSX.Element => {
     }
   };
 
-  // Remove the automatic getTokenHash effect
-  // Only update UI when token hash data changes
+  // Update UI when token hash data changes
   useEffect(() => {
     if (serialNumber && serialNumber.trim()) {
       const tokenData = getTokenHashData(serialNumber);
       if (tokenData) {
         console.log("Token data updated:", tokenData);
-        setIsNodeActive(tokenData.verificationCount > 0);
+        setIsNodeActive(tokenData.verificationCount ? tokenData.verificationCount > 0 : false);
       }
     }
   }, [serialNumber, getTokenHashData]);
 
-  // Monitor WebSocket connection status
+  // Monitor P2P connection status
   useEffect(() => {
     if (!isConnected) {
-      console.log("WebSocket disconnected:", wsStatus);
+      console.log("P2P disconnected:", p2pStatus);
+      setStatus("P2P connection lost. Please check your connection.");
     } else {
-      console.log("WebSocket connected");
+      console.log("P2P connected");
+      setStatus("Connected to P2P network");
     }
-  }, [isConnected, wsStatus]);
+  }, [isConnected, p2pStatus]);
 
   const handleSerialNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSerialNumber(e.target.value);
   };
-
-  // const handleSerialNumberBlur = () => {
-  //   // Only fetch token hash when the user has finished entering the serial number
-  //   if (serialNumber && serialNumber.trim()) {
-  //     console.log('Fetching token hash for serial number:', serialNumber);
-  //     getTokenHash(serialNumber);
-  //   }
-  // };
-
-  return (
-    <AppLayout>
-      <section id="createtoken">
-        <div className="form">
-          <p className="title">Create a New Node Token</p>
-
-          <HorizontalDivider sx={{ marginTop: "1rem" }} />
-
-          <TextInput
-            muiLabel="Node Name"
-            placeholder="Enter Node Name"
-            inputType="text"
-            inputValue={nodeName}
-            setInputValue={setNodeName}
-          />
-
-          {/* <TextInput
-            muiLabel="Transaction DateTime"
-            placeholder="Transaction DateTime"
-            inputType="datetime-local"
-            inputValue={
-              bankTimestamp
-                ? new Date(bankTimestamp.getTime() - bankTimestamp.getTimezoneOffset() * 60000)
-                    .toISOString()
-                    .slice(0, 16)
-                : ""
-            }
-            setInputValue={(value) => {
-              if (value && !isNaN(Date.parse(value))) {
-                setBankTimestamp(new Date(value));
-              } else {
-                setBankTimestamp(null);
-              }
-            }}
-          /> */}
-
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker
-              label="Bank Timestamp"
-              value={bankTimestamp}
-              onChange={(newValue) => setBankTimestamp(newValue)}
-              sx={{ width: "100%", mt: 2 }}
-            />
-          </LocalizationProvider>
-
-          <TextInput
-            muiLabel="Node Serial #"
-            placeholder="Enter Node Serial #"
-            inputType="text"
-            inputValue={serialNumber}
-            setInputValue={(value) =>
-              handleSerialNumberChange({
-                target: { value },
-              } as React.ChangeEvent<HTMLInputElement>)
-            }
-          />
-
-          <TextInput
-            muiLabel="Type"
-            placeholder="Type"
-            inputType="text"
-            inputValue={bankID}
-            setInputValue={setBankID}
-          />
-
-          <TextInput
-            muiLabel="Node Type"
-            placeholder="Node Type"
-            inputType="text"
-            inputValue={nodeType}
-            setInputValue={setNodeType}
-          />
-
-          <TextInput
-            muiLabel="Generated Token Hash"
-            placeholder="Generated Token Hash"
-            inputType="text"
-            inputValue={tokenHash}
-            setInputValue={() => {}}
-          />
-
-          <SubmitButton
-            btnText={"Create"}
-            isDisabled={
-              !serialNumber ||
-              !nodeType ||
-              !bankID ||
-              !bankTimestamp ||
-              !nodeName ||
-              tokenHash !== ""
-            }
-            onClickBtn={() => {
-              generateToken();
-            }}
-            xstyles={{
-              marginTop: "1rem",
-            }}
-          />
-        </div>
-      </section>
-      <Dialog open={showConfirmation} onClose={handleCancelToken}>
-        <DialogTitle>Confirm Token</DialogTitle>
-        <DialogContent>
-          <Typography>Generated Token Hash: {tempToken?.tokenHash}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelToken}>Cancel</Button>
-          <Button onClick={handleConfirmToken} variant="contained">
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </AppLayout>
-  );
 
   return (
     <AppLayout>
@@ -343,7 +223,6 @@ const NodeManager = (): JSX.Element => {
             label="Serial Number"
             value={serialNumber}
             onChange={handleSerialNumberChange}
-            // onBlur={handleSerialNumberBlur}
             margin="normal"
           />
 
@@ -388,8 +267,9 @@ const NodeManager = (): JSX.Element => {
               variant="outlined"
               onClick={generateToken}
               sx={{ height: "56px" }}
+              disabled={isLoading}
             >
-              Generate Token
+              {isLoading ? "Generating..." : "Generate Token"}
             </Button>
           </Box>
         </form>
@@ -410,9 +290,9 @@ const NodeManager = (): JSX.Element => {
                   bgcolor: isNodeActive ? "#388e3c" : "#1976d2",
                 },
               }}
-              disabled={!generatedToken}
+              disabled={!generatedToken || !isConnected || isLoading}
             >
-              {isNodeActive ? "✓ Verified" : "Verify Token"}
+              {isLoading ? "Verifying..." : isNodeActive ? "✓ Verified" : "Verify Token"}
             </Button>
           </Box>
 
@@ -425,6 +305,17 @@ const NodeManager = (): JSX.Element => {
           >
             {status}
           </Typography>
+
+          {verificationResult && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                Verification Status: {verificationResult.valid ? "Valid" : "Invalid"}
+              </Typography>
+              <Typography variant="body2">
+                Verified By: {verificationResult.verifiedBy} nodes
+              </Typography>
+            </Box>
+          )}
         </VerificationBox>
 
         <Dialog open={showConfirmation} onClose={handleCancelToken}>

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "module": "CommonJS",
     "outDir": "build-electron",
-    "rootDir": "src/electron"
+    "rootDir": "src/electron",
+    "moduleResolution": "node"
   },
   "include": ["src/electron/preload.ts"]
 } 

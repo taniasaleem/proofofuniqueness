@@ -1,4 +1,5 @@
-import { blockchainAPI } from "./websocket";
+// import { blockchainAPI } from "./websocket";
+import { blockchainAPI } from "./p2p";
 
 export type walletstatus = {
   address: string;

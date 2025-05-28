@@ -1,5 +1,5 @@
-import { blockchainAPI } from './websocket';
-import { WS_MESSAGE_TYPES } from './config';
+import { P2P_MESSAGE_TYPES } from './config';
+import { p2pService } from './p2p';
 
 export type nodetype = {
   address: string;
@@ -10,30 +10,77 @@ export type nodetype = {
 };
 
 export const getAllNodes = async (): Promise<nodetype[]> => {
-  return blockchainAPI.getAllNodes();
+  return new Promise((resolve, reject) => {
+    if (!p2pService.isServiceConnected()) {
+      reject(new Error('P2P connection is not available'));
+      return;
+    }
+
+    const handler = (message: any) => {
+      if (message.type === P2P_MESSAGE_TYPES.NODES_RESPONSE) {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODES_RESPONSE);
+        resolve(message.data.nodes);
+      }
+    };
+
+    p2pService.onMessage(P2P_MESSAGE_TYPES.NODES_RESPONSE, handler);
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.GET_NODES, {});
+  });
 };
 
 export const addIdentity = async (address: string, privateKey: string) => {
-  return blockchainAPI.addNode({ address, privateKey });
+  return new Promise((resolve, reject) => {
+    if (!p2pService.isServiceConnected()) {
+      reject(new Error('P2P connection is not available'));
+      return;
+    }
+
+    const handler = (message: any) => {
+      if (message.type === P2P_MESSAGE_TYPES.NODE_CONNECTED) {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODE_CONNECTED);
+        resolve(message.data);
+      }
+    };
+
+    p2pService.onMessage(P2P_MESSAGE_TYPES.NODE_CONNECTED, handler);
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.CONNECT, { address, privateKey });
+  });
 };
 
 export const registerTokenHash = async (serialNumber: string, hash: string) => {
-  return blockchainAPI.generateTokenHash(serialNumber);
+  return new Promise((resolve, reject) => {
+    if (!p2pService.isServiceConnected()) {
+      reject(new Error('P2P connection is not available'));
+      return;
+    }
+
+    const handler = (message: any) => {
+      if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
+        resolve(message.data);
+      }
+    };
+
+    p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
+  });
 };
 
 export const verifyTokenHash = async (serialNumber: string, hash: string) => {
   return new Promise((resolve, reject) => {
-    if (!blockchainAPI.isConnected()) {
-      reject(new Error('WebSocket is not connected'));
+    if (!p2pService.isServiceConnected()) {
+      reject(new Error('P2P connection is not available'));
       return;
     }
-    
-    const handler = (data: any) => {
-      blockchainAPI.removeMessageHandler(WS_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION);
-      resolve(data);
+
+    const handler = (message: any) => {
+      if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION) {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION);
+        resolve(message.data);
+      }
     };
-    
-    blockchainAPI.onMessage(WS_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, handler);
-    blockchainAPI.sendMessage(WS_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
+
+    p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, handler);
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
   });
 };

@@ -1,281 +1,125 @@
 import { useCallback, useState, useEffect } from 'react';
-import { useWebSocket } from './useWebSocket';
+import { useP2P } from './useP2P';
+import { P2P_MESSAGE_TYPES } from '../utils/api/config';
 
-interface TokenHashData {
-    serialNumber: string;
+interface TokenHash {
     hash: string;
     timestamp: number;
-    verificationCount: number;
+    serialNumber: string;
+    verificationCount?: number;
+}
+
+interface TokenHashData {
+    [serialNumber: string]: TokenHash;
 }
 
 export const useTokenHash = () => {
-    const { sendMessage, isConnected, status } = useWebSocket();
-    const [tokenHashes, setTokenHashes] = useState<Map<string, TokenHashData>>(new Map());
-    const [verificationResults, setVerificationResults] = useState<Map<string, boolean>>(new Map());
-    const [verificationStatus, setVerificationStatus] = useState<Map<string, string>>(new Map());
+    const [tokenHash, setTokenHash] = useState<TokenHash | null>(null);
+    const [tokenHashData, setTokenHashData] = useState<TokenHashData>({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const { sendMessage, isConnected, status, messages } = useP2P();
 
-    // Get token hash data
-    const getTokenHashData = useCallback((serialNumber: string) => {
-        if (!serialNumber) {
-            console.error('[TokenHash] Invalid serial number provided to getTokenHashData');
-            return undefined;
+    // Handle incoming token hash messages
+    useEffect(() => {
+        const latestMessage = messages[messages.length - 1];
+        if (latestMessage?.type === P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION) {
+            const { serialNumber, hash, timestamp, verificationCount } = latestMessage.data;
+            setTokenHashData(prev => ({
+                ...prev,
+                [serialNumber]: { hash, timestamp, serialNumber, verificationCount }
+            }));
         }
+    }, [messages]);
 
-        const data = tokenHashes.get(serialNumber);
-        return data;
-    }, [tokenHashes]);
-
-    // Debug function to check token existence
-    const debugTokenExistence = useCallback((serialNumber: string) => {
-        // Remove debug logging
-    }, [tokenHashes, verificationStatus, isConnected, status]);
-
-    // Register a new token hash
     const registerTokenHash = useCallback((serialNumber: string, hash: string) => {
-        if (!isConnected) {
-            console.error('[TokenHash] WebSocket not connected. Current status:', status);
-            return;
-        }
+        setIsLoading(true);
+        setError(null);
 
         try {
-            // Validate input
-            if (!serialNumber || typeof serialNumber !== 'string') {
-                throw new Error('Invalid serial number');
-            }
-            if (!hash || typeof hash !== 'string') {
-                throw new Error('Invalid hash');
-            }
-
-            // Format the message with all required fields
-            const message = {
-                type: 'register-token-hash',
+            sendMessage({
+                type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
                 data: {
                     serialNumber,
                     hash,
-                    requestId: Date.now()
-                },
-                timestamp: Date.now()
-            };
-
-            console.log('[TokenHash] Sending registration message:', {
-                type: message.type,
-                data: message.data,
-                timestamp: new Date(message.timestamp).toISOString()
+                    timestamp: Date.now()
+                }
             });
-
-            // Send the message and wait for response
-            sendMessage(message);
-
-            // Set up a timeout to check if registration was successful
-            const timeout = setTimeout(() => {
-                console.log('[TokenHash] Checking registration status for:', serialNumber);
-                const tokenData = getTokenHashData(serialNumber);
-                if (!tokenData) {
-                    console.error('[TokenHash] Registration failed - token not found after timeout');
-                    setVerificationStatus(prev => new Map(prev).set(serialNumber, 'Registration failed'));
-                } else {
-                    console.log('[TokenHash] Registration successful:', tokenData);
-                    setVerificationStatus(prev => new Map(prev).set(serialNumber, 'Registered'));
-                }
-            }, 5000);
-
-            return () => clearTimeout(timeout);
-        } catch (error) {
-            console.error('[TokenHash] Error in registerTokenHash:', error);
-            if (error instanceof Error) {
-                console.error('[TokenHash] Error details:', {
-                    message: error.message,
-                    stack: error.stack
-                });
-                setVerificationStatus(prev => new Map(prev).set(serialNumber, `Error: ${error.message}`));
-            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to register token hash');
+        } finally {
+            setIsLoading(false);
         }
-    }, [isConnected, sendMessage, status, getTokenHashData]);
+    }, [sendMessage]);
 
-    // Verify a token hash
     const verifyTokenHash = useCallback((serialNumber: string, hash: string) => {
-        if (!isConnected) {
-            console.error('[TokenHash] WebSocket not connected');
-            return;
-        }
+        setIsLoading(true);
+        setError(null);
 
-        // Validate input
-        if (!serialNumber || typeof serialNumber !== 'string') {
-            console.error('[TokenHash] Invalid serial number');
-            return;
-        }
-        if (!hash || typeof hash !== 'string') {
-            console.error('[TokenHash] Invalid hash');
-            return;
-        }
-
-        const message = {
-            type: 'verify-token-hash',
-            data: {
-                serialNumber,
-                hash
-            },
-            timestamp: Date.now()
-        };
-        sendMessage(message);
-    }, [isConnected, sendMessage]);
-
-    // Get token hash for a serial number
-    const getTokenHash = useCallback((serialNumber: string) => {
-        if (!serialNumber || typeof serialNumber !== 'string') {
-            console.error('[TokenHash] Invalid serial number:', serialNumber);
-            return;
-        }
-
-        // If not connected, try to establish connection
-        if (!isConnected) {
-            const connectionMessage = {
-                type: 'get-clients',
+        try {
+            sendMessage({
+                type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
                 data: {
-                    requestId: Date.now(),
-                    port: 8080
-                },
-                timestamp: Date.now()
-            };
-            
-            window.electron?.ipcRenderer.send('ws-get-clients', connectionMessage);
-            
-            // Wait a short time for connection to establish
-            setTimeout(() => {
-                if (isConnected) {
-                    // Create the message with the correct structure
-                    const message = {
-                        type: 'get-token-hash',
-                        data: {
-                            serialNumber,
-                            requestId: Date.now()
-                        },
-                        timestamp: Date.now()
-                    };
-                    console.log('[TokenHash] Sending get-token-hash message:', message);
-                    sendMessage(message);
+                    serialNumber,
+                    hash,
+                    timestamp: Date.now()
                 }
-            }, 1000);
-            return;
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to verify token hash');
+        } finally {
+            setIsLoading(false);
         }
+    }, [sendMessage]);
 
-        // Create the message with the correct structure
-        const message = {
-            type: 'get-token-hash',
-            data: {
-                serialNumber,
-                requestId: Date.now()
-            },
-            timestamp: Date.now()
-        };
+    const getTokenHash = useCallback((serialNumber: string) => {
+        setIsLoading(true);
+        setError(null);
 
-        console.log('[TokenHash] Sending get-token-hash message:', message);
-        sendMessage(message);
-    }, [isConnected, sendMessage]);
-
-    // Process incoming messages
-    const processMessages = useCallback(() => {
-        const handleMessage = (message: any) => {
-            // Validate message structure
-            if (!message || typeof message !== 'object') {
-                console.error('[TokenHash] Invalid message structure:', message);
-                return;
-            }
-
-            if (!message.type) {
-                console.error('[TokenHash] Message missing type field:', message);
-                return;
-            }
-
-            // Handle WebSocket messages with clientId and data
-            if (message.clientId && message.data) {
-                // Handle registration response
-                if (message.type === 'token-hash-registered') {
-                    const { serialNumber, hash, timestamp, verificationCount, status } = message.data;
-                    console.log('[TokenHash] Processing token registration:', {
-                        serialNumber,
-                        hash,
-                        timestamp,
-                        verificationCount,
-                        status
-                    });
-
-                    setTokenHashes(prev => {
-                        const newMap = new Map(prev);
-                        newMap.set(serialNumber, {
-                            serialNumber,
-                            hash,
-                            timestamp: timestamp || Date.now(),
-                            verificationCount: verificationCount || 0
-                        });
-                        return newMap;
-                    });
-
-                    // Update verification status based on registration status
-                    let statusMessage = 'Registered';
-                    if (status === 'already_registered') {
-                        statusMessage = 'Already Registered';
-                    } else if (status === 'broadcast') {
-                        statusMessage = 'Broadcast Received';
-                    }
-
-                    setVerificationStatus(prev => new Map(prev).set(serialNumber, statusMessage));
-                    return;
+        try {
+            sendMessage({
+                type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
+                data: {
+                    serialNumber,
+                    timestamp: Date.now()
                 }
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to get token hash');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [sendMessage]);
 
-                // Handle error messages
-                if (message.type === 'error') {
-                    console.error('[TokenHash] WebSocket error:', {
-                        message: message.data.message,
-                        clientId: message.clientId,
-                        originalMessage: message.data.originalMessage
-                    });
+    const getTokenHashData = useCallback((serialNumber: string) => {
+        return tokenHashData[serialNumber] || null;
+    }, [tokenHashData]);
 
-                    if (message.data.originalMessage?.data?.serialNumber) {
-                        setVerificationStatus(prev => new Map(prev).set(
-                            message.data.originalMessage.data.serialNumber,
-                            `Error: ${message.data.message}`
-                        ));
-                    }
-                    return;
-                }
-
-                // Handle verification response
-                if (message.type === 'token-hash-verification') {
-                    const { serialNumber, isValid, verificationCount } = message.data;
-                    setVerificationResults(prev => new Map(prev).set(serialNumber, isValid));
-                    setVerificationStatus(prev => new Map(prev).set(
-                        serialNumber,
-                        isValid ? 'Verified' : 'Verification Failed'
-                    ));
-                    return;
-                }
-            }
-        };
-
-        return handleMessage;
-    }, []);
-
-    // Get verification result
     const getVerificationResult = useCallback((serialNumber: string) => {
-        return verificationResults.get(serialNumber);
-    }, [verificationResults]);
+        const data = tokenHashData[serialNumber];
+        return data ? {
+            valid: data.verificationCount ? data.verificationCount > 0 : false,
+            verifiedBy: data.verificationCount || 0
+        } : null;
+    }, [tokenHashData]);
 
-    // Get verification status
     const getVerificationStatus = useCallback((serialNumber: string) => {
-        return verificationStatus.get(serialNumber) || 'Not verified';
-    }, [verificationStatus]);
+        const data = tokenHashData[serialNumber];
+        if (!data) return 'Not Found';
+        return data.verificationCount ? 'Verified' : 'Unverified';
+    }, [tokenHashData]);
 
     return {
+        tokenHash,
         registerTokenHash,
         verifyTokenHash,
         getTokenHash,
         getTokenHashData,
         getVerificationResult,
         getVerificationStatus,
+        isLoading,
+        error,
         isConnected,
-        status,
-        processMessages,
-        debugTokenExistence
+        status
     };
 }; 

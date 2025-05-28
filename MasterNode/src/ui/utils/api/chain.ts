@@ -1,4 +1,4 @@
-import { blockchainAPI, ChainInfo, ChainSupply, SyncResponse } from './websocket';
+import { blockchainAPI, ChainInfo, ChainSupply, SyncResponse } from './p2p';
 
 export type chainsupply = ChainSupply;
 export type chaininfo = ChainInfo;
@@ -17,5 +17,5 @@ export const getChainInfo = async (): Promise<chaininfo> => {
 };
 
 export const syncWithNodes = async (peerUrl: string): Promise<syncres> => {
-  return blockchainAPI.syncWithNodes(peerUrl);
+  return blockchainAPI.sendMessage('sync-request', { peerUrl });
 };

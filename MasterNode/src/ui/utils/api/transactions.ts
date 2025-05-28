@@ -1,17 +1,11 @@
-import { blockchainAPI } from './websocket';
+import { p2pService } from './p2p';
+import { P2P_MESSAGE_TYPES } from './config';
 
-export type transactionres = {
+export interface transactionres {
   success: boolean;
-  transaction: {
-    fromAddress: string;
-    toAddress: string;
-    amount: number;
-    fee: number;
-    signature: string;
-    timestamp: number;
-  };
   message: string;
-};
+  transactionId?: string;
+}
 
 export type addressbalance = {
   balance: number;
@@ -42,7 +36,7 @@ export type blcokhashInfo = {
   timestamp: number;
 };
 
-export const createTransaction = async (
+export const createTransaction = (
   fromAddress: string,
   toAddress: string,
   amount: number,
@@ -50,34 +44,67 @@ export const createTransaction = async (
   privateKey: string,
   message: string
 ): Promise<transactionres> => {
-  const URL = BASEURL + TX_ENDPOINTS.createtransaction;
+  return new Promise((resolve, reject) => {
+    try {
+      const transactionData = {
+        fromAddress,
+        toAddress,
+        amount,
+        fee,
+        privateKey,
+        message,
+        timestamp: Date.now()
+      };
 
-  const res = await fetch(URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fromAddress,
-      toAddress,
-      amount,
-      fee,
-      privateKey,
-      message,
-    }),
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.CREATE_TRANSACTION, transactionData);
+
+      // For now, we'll simulate a successful response
+      // In a real implementation, you would wait for a P2P response
+      resolve({
+        success: true,
+        message: 'Transaction sent via P2P',
+        transactionId: `tx-${Date.now()}`
+      });
+    } catch (error) {
+      reject(error);
+    }
   });
-
-  return res.json();
-};
-
-export const getAddressBalance = async (address: string): Promise<addressbalance> => {
-  return blockchainAPI.getAddressBalance(address);
 };
 
 export const verifyTransactionWithHash = async (hash: string): Promise<transactionInfo> => {
-  return blockchainAPI.sendMessage('verify-transaction', { hash });
+  return new Promise((resolve, reject) => {
+    try {
+      // Set up response handler
+      const handler = (data: any) => {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TRANSACTION_VERIFIED);
+        resolve(data);
+      };
+
+      // Register handler and send verification request
+      p2pService.onMessage(P2P_MESSAGE_TYPES.TRANSACTION_VERIFIED, handler);
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TRANSACTION, { hash })
+        .catch(reject);
+    } catch (error) {
+      reject(error);
+    }
+  });
 };
 
 export const verifyBlockWithHash = async (hash: string): Promise<blcokhashInfo> => {
-  return blockchainAPI.verifyBlockHash(hash);
+  return new Promise((resolve, reject) => {
+    try {
+      // Set up response handler
+      const handler = (data: any) => {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.BLOCK_VERIFIED);
+        resolve(data);
+      };
+
+      // Register handler and send verification request
+      p2pService.onMessage(P2P_MESSAGE_TYPES.BLOCK_VERIFIED, handler);
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_BLOCK, { hash })
+        .catch(reject);
+    } catch (error) {
+      reject(error);
+    }
+  });
 };
