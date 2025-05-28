@@ -38,11 +38,11 @@ export default function CreateToken(): JSX.Element {
 
   // Monitor P2P connection status
   useEffect(() => {
-    if (!isConnected) {
-      showerrorsnack(
+        if (!isConnected) {
+          showerrorsnack(
         "P2P connection not available. Please try again later."
-      );
-    }
+          );
+        }
   }, [isConnected, showerrorsnack]);
 
   const generateToken = () => {
@@ -87,8 +87,8 @@ export default function CreateToken(): JSX.Element {
       sendMessage({
         type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
         data: {
-          serialNumber: nodeSerial,
-          hash: tempToken.tokenHash,
+        serialNumber: nodeSerial,
+        hash: tempToken.tokenHash,
         },
       });
 

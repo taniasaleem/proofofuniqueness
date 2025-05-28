@@ -1,34 +1,11 @@
-const { contextBridge, ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 
-// Define message types for type safety
-export enum MessageType {
-  TEST = 'test-message',
-  GET_NODES = 'get-nodes',
-  GET_PEERS = 'get-peers',
-  PEERS_LIST = 'peers-list',
-  P2P_READY = 'p2p-ready',
-  PEER_CONNECTED = 'peer-connected',
-  PEER_DISCONNECTED = 'peer-disconnected'
-}
-
-// Define message interface
-export interface Message {
-  type: MessageType;
-  data?: any;
-  timestamp: string;
-  channel?: string;
-  broadcast?: boolean;
-  peerId?: string;
-  success?: boolean;
-  error?: string;
-}
-
-// Define interfaces for type safety
+// Define interfaces
 interface IpcRenderer {
-  send: (channel: string, message: Message) => void;
-  on: (channel: string, func: (event: IpcRendererEvent, message: Message) => void) => void;
-  removeListener: (channel: string, func: (event: IpcRendererEvent, message: Message) => void) => void;
+  send: (channel: string, data: any) => void;
+  on: (channel: string, func: (...args: any[]) => void) => void;
+  removeListener: (channel: string, func: (...args: any[]) => void) => void;
 }
 
 interface ElectronAPI {
@@ -45,127 +22,172 @@ declare global {
   }
 }
 
-// Define valid channels
+// Define valid channels for security
 const validSendChannels = ['p2p-send', 'p2p-get-peers'];
-const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-ready', 'peer-connected', 'peer-disconnected'];
+const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-peers-list'];
 
-// Add logging utility
-const log = (message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  if (data) {
-    console.log(`[Preload][${timestamp}] ${message}`, data);
-  } else {
-    console.log(`[Preload][${timestamp}] ${message}`);
-  }
-};
-
-// Log environment information
-log('Environment Check', {
-  electronVersion: process.versions.electron,
-  nodeVersion: process.versions.node,
+console.log('=== Preload Script Initialization ===');
+console.log('1. Environment Check:', {
+  hasContextBridge: typeof contextBridge !== 'undefined',
+  hasIpcRenderer: typeof ipcRenderer !== 'undefined',
   processType: process.type,
-  hasContextBridge: !!contextBridge,
-  hasIpcRenderer: !!ipcRenderer,
-  isRenderer: process.type === 'renderer'
+  isRenderer: process.type === 'renderer',
+  nodeVersion: process.versions.node,
+  electronVersion: process.versions.electron
 });
 
-// Create the API object
-const electronAPI: ElectronAPI = {
-  ipcRenderer: {
-    send: (channel: string, message: Message) => {
-      log('IPC send called', { channel, message });
-      
-      if (validSendChannels.includes(channel)) {
-        const fullMessage: Message = {
-          ...message,
-          channel,
-          timestamp: new Date().toISOString()
-        };
-        log('Sending valid IPC message', fullMessage);
-        ipcRenderer.send(channel, fullMessage);
-      } else {
-        log('Invalid IPC channel', channel);
-        throw new Error(`Invalid IPC channel: ${channel}`);
-      }
-    },
-    on: (channel: string, func: (event: IpcRendererEvent, message: Message) => void) => {
-      log('IPC on called', { channel });
-      
-      if (validReceiveChannels.includes(channel)) {
-        const wrappedFunc = (event: IpcRendererEvent, ...args: any[]) => {
+console.log('2. Initial Window State:', {
+  hasElectron: !!window.electron,
+  windowKeys: Object.keys(window),
+  electronKeys: window.electron ? Object.keys(window.electron) : []
+});
+
+try {
+  console.log('3. Attempting to expose IPC API...');
+  
+  // Create the API object
+  const electronAPI = {
+    ipcRenderer: {
+      send: (channel: string, data: any) => {
+        console.log('IPC send called with channel:', channel, 'data:', data);
+        
+        if (!data) {
+          console.error('IPC send called with undefined data');
+          return;
+        }
+        if (typeof data !== 'object') {
+          console.error('IPC send called with non-object data:', data);
+          return;
+        }
+        if (!data.type) {
+          console.error('IPC send called with data missing type:', data);
+          return;
+        }
+
+        if (validSendChannels.includes(channel)) {
           try {
-            log('IPC received message', { channel, args });
-            if (args[0] && typeof args[0] === 'object') {
-              const message = args[0] as Message;
-              if (message.type && message.timestamp) {
-                func(event, message);
-              } else {
-                log('Invalid message format received', message);
-                throw new Error('Invalid message format');
-              }
-            } else {
-              log('Invalid message format received');
-              throw new Error('Invalid message format');
-            }
+            console.log('Sending valid IPC message:', {
+              channel,
+              type: data.type,
+              timestamp: new Date().toISOString()
+            });
+            ipcRenderer.send(channel, data);
           } catch (error) {
-            log('Error handling IPC message', error);
-            throw error;
+            console.error('Error sending IPC message:', error);
           }
-        };
-        ipcRenderer.on(channel, wrappedFunc);
-      } else {
-        log('Invalid IPC channel', channel);
-        throw new Error(`Invalid IPC channel: ${channel}`);
-      }
-    },
-    removeListener: (channel: string, func: (event: IpcRendererEvent, message: Message) => void) => {
-      if (validReceiveChannels.includes(channel)) {
-        ipcRenderer.removeListener(channel, func);
-      } else {
-        log('Invalid IPC channel for removeListener', channel);
-        throw new Error(`Invalid IPC channel: ${channel}`);
+        } else {
+          console.warn(`Attempted to send to unauthorized channel: ${channel}`);
+          throw new Error(`Unauthorized channel: ${channel}`);
+        }
+      },
+      on: (channel: string, func: (...args: any[]) => void) => {
+        console.log('IPC on called with channel:', channel);
+        if (validReceiveChannels.includes(channel)) {
+          ipcRenderer.on(channel, (event, ...args) => {
+            try {
+              console.log('IPC received message:', { channel, args });
+              if (!args || args.length === 0) {
+                console.error('IPC received empty message');
+                return;
+              }
+
+              const message = args[0];
+              if (!message || typeof message !== 'object') {
+                console.error('IPC received invalid message structure:', message);
+                return;
+              }
+
+              if (!message.type) {
+                message.type = channel;
+              }
+
+              func(...args);
+            } catch (error) {
+              console.error('Error handling IPC message:', error);
+            }
+          });
+        } else {
+          console.warn(`Attempted to listen to unauthorized channel: ${channel}`);
+          throw new Error(`Unauthorized channel: ${channel}`);
+        }
+      },
+      removeListener: (channel: string, func: (...args: any[]) => void) => {
+        console.log('IPC removeListener called with channel:', channel);
+        if (validReceiveChannels.includes(channel)) {
+          console.log('Removing listener for channel:', channel);
+          ipcRenderer.removeListener(channel, func);
+        } else {
+          console.warn(`Attempted to remove listener from unauthorized channel: ${channel}`);
+          throw new Error(`Unauthorized channel: ${channel}`);
+        }
       }
     }
-  }
-};
+  };
 
-// Expose the API to the renderer process
-try {
-  log('Exposing API to renderer');
-  contextBridge.exposeInMainWorld('electron', electronAPI);
-  log('API exposed successfully via contextBridge');
-} catch (error) {
-  log('Error exposing API', error);
-  throw error;
-}
-
-// Verify API exposure after DOM content is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  log('=== DOM Content Loaded ===');
-  
-  // Check if API is available
-  const hasElectron = !!(window as any).electron;
-  const windowKeys = Object.keys(window);
-  const electronKeys = hasElectron ? Object.keys((window as any).electron) : [];
-  const electronMethods = hasElectron ? Object.keys((window as any).electron.ipcRenderer) : [];
-  
-  log('Preload script verification', {
-    hasElectron,
-    windowKeys,
-    electronKeys,
-    electronMethods
+  console.log('4. API Object Created:', {
+    hasIpcRenderer: !!electronAPI.ipcRenderer,
+    methods: Object.keys(electronAPI.ipcRenderer)
   });
 
-  if (!hasElectron) {
-    log('IPC functionality not available');
-    throw new Error('Electron API not available in renderer process');
+  // Expose the API
+  console.log('5. Exposing API to renderer...');
+  
+  // Ensure we're in a renderer process
+  if (process.type === 'renderer') {
+    // Use a more direct approach to expose the API
+    (window as any).electron = electronAPI;
+    
+    // Also try contextBridge as a backup
+    try {
+      contextBridge.exposeInMainWorld('electron', electronAPI);
+    } catch (error) {
+      console.warn('contextBridge exposure failed, using direct assignment:', error);
+    }
   } else {
-    // Test IPC functionality
-    log('Testing IPC functionality');
-    (window as any).electron.ipcRenderer.send('p2p-send', {
-      type: MessageType.TEST,
-      data: { message: 'Testing IPC from preload' },
-      broadcast: true
-    });
+    throw new Error('Not in renderer process');
+  }
+
+  console.log('6. Post-exposure Window State:', {
+    hasElectron: !!window.electron,
+    windowKeys: Object.keys(window),
+    electronKeys: window.electron ? Object.keys(window.electron) : [],
+    electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
+  });
+
+  console.log('=== Preload Script Initialization Complete ===');
+} catch (error) {
+  console.error('=== Preload Script Error ===');
+  console.error('Failed to expose IPC API:', error);
+  console.error('Error state window:', {
+    hasElectron: !!window.electron,
+    windowKeys: Object.keys(window),
+    electronKeys: window.electron ? Object.keys(window.electron) : []
+  });
+}
+
+// Verify API exposure after DOM is loaded
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('=== DOM Content Loaded ===');
+  console.log('1. Preload script verification:', {
+    hasElectron: !!window.electron,
+    windowKeys: Object.keys(window),
+    electronKeys: window.electron ? Object.keys(window.electron) : [],
+    electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
+  });
+
+  // Test IPC functionality
+  if (window.electron?.ipcRenderer) {
+    console.log('2. Testing IPC functionality...');
+    try {
+      window.electron.ipcRenderer.send('p2p-send', {
+        type: 'test-message',
+        data: { message: 'Testing IPC from DOMContentLoaded' }
+      });
+      console.log('3. IPC test message sent successfully');
+    } catch (error) {
+      console.error('3. IPC test failed:', error);
+    }
+  } else {
+    console.error('2. IPC functionality not available');
   }
 }); 

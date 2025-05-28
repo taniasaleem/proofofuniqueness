@@ -42,7 +42,7 @@ export const useTokenHash = () => {
                 data: {
                     serialNumber,
                     hash,
-                    timestamp: Date.now()
+                timestamp: Date.now()
                 }
             });
         } catch (err) {
@@ -59,10 +59,10 @@ export const useTokenHash = () => {
         try {
             sendMessage({
                 type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
-                data: {
-                    serialNumber,
+                        data: {
+                            serialNumber,
                     hash,
-                    timestamp: Date.now()
+                        timestamp: Date.now()
                 }
             });
         } catch (err) {
@@ -79,9 +79,9 @@ export const useTokenHash = () => {
         try {
             sendMessage({
                 type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
-                data: {
-                    serialNumber,
-                    timestamp: Date.now()
+            data: {
+                serialNumber,
+            timestamp: Date.now()
                 }
             });
         } catch (err) {

@@ -47,12 +47,12 @@ export const createTransaction = (
   return new Promise((resolve, reject) => {
     try {
       const transactionData = {
-        fromAddress,
-        toAddress,
-        amount,
-        fee,
-        privateKey,
-        message,
+      fromAddress,
+      toAddress,
+      amount,
+      fee,
+      privateKey,
+      message,
         timestamp: Date.now()
       };
 
