@@ -15,7 +15,6 @@ import MyNodeSettings from "./pages/mynode/Settings";
 import CreateWallet from "./pages/mywallets/CreateWallet";
 import MyWalletLedgers from "./pages/mywallets/Ledgers";
 import Messages from "./pages/masternode/Messages";
-import {NodeManager} from "./pages/NodeManager";
 import { AppDrawer } from "./components/global/Appdrawer";
 import { SnackBar } from "./components/global/SnackBar";
 
@@ -50,7 +49,6 @@ function App(): JSX.Element {
               element={<MyWalletLedgers />}
             />
             <Route path="settings" index element={<Settings />} />
-            <Route path="node-manager" index element={<NodeManager />} />
           </Routes>
 
           <AppDrawer />

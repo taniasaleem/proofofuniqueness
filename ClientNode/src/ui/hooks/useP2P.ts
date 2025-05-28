@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { P2PAPI, TokenHashData } from '../types';
+import { P2P_MESSAGE_TYPES } from '../utils/api/config';
 
 declare global {
   interface Window {
@@ -28,6 +29,20 @@ export const useP2P = (): P2PAPI => {
     message: null
   });
 
+  // Check initial connection status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const status = await window.electron.ipcRenderer.invoke('p2p:get-status');
+        console.log('Initial P2P connection status:', status);
+        setIsConnected(status.isConnected);
+      } catch (error) {
+        console.error('Error checking P2P connection status:', error);
+      }
+    };
+    checkConnection();
+  }, []);
+
   // Cleanup function to remove all listeners
   const cleanup = useCallback(() => {
     const { connection, disconnection, error, message } = handlersRef.current;
@@ -46,16 +61,43 @@ export const useP2P = (): P2PAPI => {
   }, []);
 
   useEffect(() => {
+    console.log('Setting up P2P event listeners');
+    
     // Clean up any existing listeners
     cleanup();
 
     // Create new handlers
-    const handleConnection = () => setIsConnected(true);
-    const handleDisconnection = () => setIsConnected(false);
-    const handleError = (error: any) => console.error('P2P error:', error);
+    const handleConnection = () => {
+      console.log('P2P Connected event received');
+      setIsConnected(true);
+    };
+    
+    const handleDisconnection = () => {
+      console.log('P2P Disconnected event received');
+      setIsConnected(false);
+    };
+    
+    const handleError = (error: any) => {
+      console.error('P2P error received:', error);
+      setIsConnected(false);
+    };
+    
     const handleMessage = (message: any) => {
-      if (message.type === 'token-hash') {
-        setTokenHashes(prev => new Map(prev).set(message.data.serialNumber, message.data));
+      console.log('Received P2P message:', message);
+      if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
+        const { serialNumber, hash } = message.data;
+        console.log('Processing token hash created message:', { serialNumber, hash });
+        setTokenHashes(prev => {
+          const newMap = new Map(prev);
+          newMap.set(serialNumber, {
+            hash,
+            serialNumber,
+            timestamp: new Date().toISOString(),
+            verified: true,
+            verificationCount: 0
+          });
+          return newMap;
+        });
       }
     };
 
@@ -73,6 +115,8 @@ export const useP2P = (): P2PAPI => {
     window.electron.ipcRenderer.on('p2p:error', handleError);
     window.electron.ipcRenderer.on('p2p:message', handleMessage);
 
+    console.log('P2P event listeners set up');
+
     // Cleanup on unmount
     return cleanup;
   }, [cleanup]);
@@ -80,7 +124,7 @@ export const useP2P = (): P2PAPI => {
   const registerTokenHash = useCallback(async (serialNumber: string, hash: string) => {
     try {
       await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: 'register-token-hash',
+        type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
         data: { serialNumber, hash }
       });
     } catch (error) {
@@ -92,7 +136,7 @@ export const useP2P = (): P2PAPI => {
   const verifyTokenHash = useCallback(async (serialNumber: string, hash: string) => {
     try {
       await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: 'verify-token-hash',
+        type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
         data: { serialNumber, hash }
       });
     } catch (error) {

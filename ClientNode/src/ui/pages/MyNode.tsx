@@ -14,35 +14,54 @@ export default function MyNode() {
   const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
   const [region] = useState<string>("AWS: US-east-2");
   const [wallet, setWallet] = useState<string>("");
+  const [tokenHash, setTokenHash] = useState<string>("-");
 
   // Use the token hash hook for real-time status
   const { isConnected, getTokenHash, getTokenHashData } = useP2P();
 
+  // Update connection status when P2P connection changes
   useEffect(() => {
-    if (isConnected) {
-      setStatus('Connected');
-    } else {
-      setStatus('Disconnected');
-    }
+    console.log('Connection status changed:', isConnected);
+    setConnectionStatus(isConnected ? "Connected" : "Disconnected");
+    setStatus(isConnected ? "Connected" : "Pending");
   }, [isConnected]);
 
+  // Update token hash and node info when token data changes
   useEffect(() => {
     const serial = node.serialNumber;
-    
-    // Get token data from master node
-    getTokenHash(serial);
-    
-    // Update UI with token data
+    console.log('Checking token data for serial:', serial);
     const tokenData = getTokenHashData(serial);
+    console.log('Token data:', tokenData);
+    
     if (tokenData) {
+      console.log('Updating UI with token data:', tokenData);
+      setTokenHash(tokenData.hash);
       setCreationDate(new Date(tokenData.timestamp).toLocaleString());
       setLastUpdated(new Date().toLocaleString());
       setWallet(node.wallet.getPublicKey().slice(0, 12) + ".." + serial);
-      setStatus(tokenData.verificationCount > 0 ? "Started" : "Pending");
+      setStatus(tokenData.verificationCount > 0 ? "Verified" : "Connected");
     }
-    
-    setConnectionStatus(isConnected ? "Connected" : "Disconnected");
-  }, [node, isConnected, getTokenHash, getTokenHashData]);
+  }, [node, getTokenHashData]);
+
+  // Listen for token hash updates
+  useEffect(() => {
+    const handleTokenUpdate = () => {
+      const serial = node.serialNumber;
+      const tokenData = getTokenHashData(serial);
+      if (tokenData) {
+        console.log('Token update received:', tokenData);
+        setTokenHash(tokenData.hash);
+        setCreationDate(new Date(tokenData.timestamp).toLocaleString());
+        setLastUpdated(new Date().toLocaleString());
+        setStatus(tokenData.verificationCount > 0 ? "Verified" : "Connected");
+      }
+    };
+
+    // Set up interval to check for updates
+    const interval = setInterval(handleTokenUpdate, 1000);
+
+    return () => clearInterval(interval);
+  }, [node, getTokenHashData]);
 
   return (
     <AppLayout>
@@ -56,7 +75,7 @@ export default function MyNode() {
           </p>
 
           <p className="info_ctr">
-            Node Token <span>{getTokenHashData(node.serialNumber)?.hash || "-"}</span>
+            Node Token <span>{tokenHash}</span>
           </p>
 
           <p className="info_ctr">
@@ -68,11 +87,11 @@ export default function MyNode() {
           </p>
 
           <p className="info_ctr">
-            Status <span className="status">{status}</span>
+            Status <span className={`status ${status.toLowerCase()}`}>{status}</span>
           </p>
 
           <p className="info_ctr">
-            Connection Status <span className="status">{connectionStatus}</span>
+            Connection Status <span className={`status ${connectionStatus.toLowerCase()}`}>{connectionStatus}</span>
           </p>
 
           <p className="info_ctr">

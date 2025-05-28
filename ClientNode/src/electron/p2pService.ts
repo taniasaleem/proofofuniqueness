@@ -42,7 +42,7 @@ export class P2PService {
     this.MAX_RETRIES = 5
     this.retryCount = 0
     this.PEERLIST_PROTOCOL = '/peerlist/1.0.0'
-    this.MESSAGE_PROTOCOL = '/token/1.0.0'
+    this.MESSAGE_PROTOCOL = '/p2p/1.0.0'
     this.remotePeer = null
     this.mainWindow = BrowserWindow.getAllWindows()[0] || null
     this.reconnectTimeout = null
@@ -132,6 +132,10 @@ export class P2PService {
       
       if (this.remotePeer?.toString() === remotePeer.toString()) {
         console.log('[P2PService] Disconnected from master node, attempting to reconnect...');
+        // Notify main window about disconnection
+        if (this.mainWindow) {
+          this.mainWindow.webContents.send('p2p:disconnected');
+        }
         this.connectToMaster(multiaddr(this.MASTER_ADDRESSES[0]));
       }
     });
@@ -148,6 +152,12 @@ export class P2PService {
         connectedAt: new Date().toISOString(),
         lastSeen: new Date().toISOString()
       });
+      
+      // Notify main window about connection
+      if (this.mainWindow) {
+        console.log('[P2PService] Notifying main window about peer connection');
+        this.mainWindow.webContents.send('p2p:connected');
+      }
       
       this.logPeerList();
       await this.requestPeerList();
@@ -212,6 +222,12 @@ export class P2PService {
       await this.clientnode.dial(ma)
       console.log('Successfully dialed to master node')
       this.retryCount = 0 // Reset retry count on successful connection
+      
+      // Notify main window about successful connection
+      if (this.mainWindow) {
+        console.log('[P2PService] Notifying main window about successful connection');
+        this.mainWindow.webContents.send('p2p:connected');
+      }
     } catch (err) {
       console.log(`Failed to connect to master node, retrying in ${this.RETRY_INTERVAL / 1000}s...`)
       this.retryCount++
@@ -359,6 +375,13 @@ export class P2PService {
   }
 
   isConnected(): boolean {
-    return this.clientnode !== null && this.remotePeer !== null && !this.isConnecting;
+    if (!this.clientnode || !this.remotePeer) {
+      return false;
+    }
+    
+    // Check if we have an active connection to the remote peer
+    const connections = this.clientnode.getConnections();
+    const isPeerConnected = connections.some(conn => conn.remotePeer.toString() === this.remotePeer?.toString());
+    return isPeerConnected && !this.isConnecting;
   }
 } 

@@ -1,3 +1,5 @@
+import { P2P_MESSAGE_TYPES } from './config';
+
 // Handle crypto in both Node.js and browser environments
 
 
@@ -198,13 +200,6 @@ export interface SyncResponse {
   success: boolean;
 }
 
-export interface TokenHash {
-  hash: string;
-  serialNumber: string;
-  timestamp: number;
-  verifiedBy?: string[];
-}
-
 export interface TokenVerificationResponse {
   isValid: boolean;
   verifiedBy: string[];
@@ -348,22 +343,32 @@ export const blockchainAPI = {
   },
 
   // Token Operations
-  verifyToken: (serialNumber: string, hash: string) => {
-    return new Promise<TokenVerificationResponse>((resolve, reject) => {
+  handleTokenHashCreated: (data: any) => {
+    return new Promise<any>((resolve, reject) => {
       if (!p2pService.isConnected()) {
         reject(new Error('P2P service is not connected'));
         return;
       }
-      const handler = (data: TokenVerificationResponse | ErrorResponse) => {
-        p2pService.removeMessageHandler('token-verification-response');
-        if ('error' in data) {
-          reject(new Error(data.error));
-        } else {
-          resolve(data as TokenVerificationResponse);
-        }
+      const handler = (response: any) => {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
+        resolve(response);
       };
-      p2pService.onMessage('token-verification-response', handler);
-      p2pService.sendMessage('verify-token-hash', { serialNumber, hash });
+      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
+    });
+  },
+
+  verifyTokenHash: (serialNumber: string, hash: string) => {
+    return new Promise<any>((resolve, reject) => {
+      if (!p2pService.isConnected()) {
+        reject(new Error('P2P service is not connected'));
+        return;
+      }
+      const handler = (data: any) => {
+        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION);
+        resolve(data);
+      };
+      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, handler);
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
     });
   },
 
@@ -416,8 +421,21 @@ export const useP2P = (): P2PAPI => {
     const handleDisconnection = () => setIsConnected(false);
     const handleError = (error: any) => console.error('P2P error:', error);
     const handleMessage = (message: any) => {
-      if (message.type === 'token-hash') {
-        setTokenHashes(prev => new Map(prev).set(message.data.serialNumber, message.data));
+      console.log('Received P2P message:', message);
+      if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
+        const { serialNumber, hash } = message.data;
+        console.log('Processing token hash created message:', { serialNumber, hash });
+        setTokenHashes(prev => {
+          const newMap = new Map(prev);
+          newMap.set(serialNumber, {
+            hash,
+            serialNumber,
+            timestamp: new Date().toISOString(),
+            verified: true,
+            verificationCount: 0
+          });
+          return newMap;
+        });
       }
     };
 
@@ -437,7 +455,7 @@ export const useP2P = (): P2PAPI => {
   const registerTokenHash = useCallback(async (serialNumber: string, hash: string) => {
     try {
       await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: 'register-token-hash',
+        type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
         data: { serialNumber, hash }
       });
     } catch (error) {
@@ -449,7 +467,7 @@ export const useP2P = (): P2PAPI => {
   const verifyTokenHash = useCallback(async (serialNumber: string, hash: string) => {
     try {
       await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: 'verify-token-hash',
+        type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
         data: { serialNumber, hash }
       });
     } catch (error) {

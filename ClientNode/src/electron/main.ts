@@ -67,7 +67,7 @@ async function createWindow() {
   if (process.env.NODE_ENV === 'development') {
     try {
       console.log('[Main] Loading development server');
-      await mainWindow.loadURL('http://localhost:3001');
+      await mainWindow.loadURL('http://localhost:3002');
       mainWindow.webContents.openDevTools();
       console.log('[Main] Development server loaded successfully');
     } catch (error) {
@@ -140,6 +140,21 @@ function setupIpcHandlers() {
       return true;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      mainWindow?.webContents.send('p2p:error', { message: errorMessage });
+      throw error;
+    }
+  });
+
+  // Status handler
+  ipcMain.handle('p2p:get-status', async () => {
+    console.log('[Main] Handling p2p:get-status request');
+    try {
+      const isConnected = service.isConnected();
+      console.log('[Main] P2P connection status:', isConnected);
+      return { isConnected };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('[Main] Error getting P2P status:', errorMessage);
       mainWindow?.webContents.send('p2p:error', { message: errorMessage });
       throw error;
     }

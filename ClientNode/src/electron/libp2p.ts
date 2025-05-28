@@ -26,7 +26,10 @@ export async function createLibp2p(options: Libp2pConfig): Promise<Libp2p> {
     ],
     peerDiscovery: [
       mdns()
-    ]
+    ],
+    addresses: {
+      listen: ['/ip4/0.0.0.0/tcp/0']
+    }
   }
 
   return create(defaultsDeep(options, defaults))

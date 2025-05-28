@@ -1,42 +1,41 @@
-
 // P2P message types
 export const P2P_MESSAGE_TYPES = {
+  // Connection
+  CONNECT: 'connect',
+  DISCONNECT: 'disconnect',
+  ERROR: 'error',
+
   // Node Management
   GET_NODES: 'get-nodes',
   NODES_RESPONSE: 'nodes-response',
-  ADD_NODE: 'add-node',
-  NODE_ADDED: 'node-added',
-  
-  // Token Management
-  REGISTER_TOKEN_HASH: 'register-token-hash',
-  TOKEN_HASH_REGISTERED: 'token-hash-registered',
-  VERIFY_TOKEN_HASH: 'verify-token-hash',
-  TOKEN_HASH_VERIFICATION: 'token-hash-verification',
-  GET_TOKENS: 'get-tokens',
-  TOKENS_RESPONSE: 'tokens-response',
-  
+  NODE_CONNECTED: 'node-connected',
+  NODE_DISCONNECTED: 'node-disconnected',
+
   // Chain Operations
   GET_CHAIN_INFO: 'get-chain-info',
   CHAIN_INFO: 'chain-info',
   GET_SUPPLY_INFO: 'get-supply-info',
   SUPPLY_INFO: 'supply-info',
+  SYNC_REQUEST: 'sync-request',
+  SYNC_RESPONSE: 'sync-response',
   CHOOSE_PROPOSER: 'choose-proposer',
-  
+
   // Transaction Operations
   CREATE_TRANSACTION: 'create-transaction',
   TRANSACTION_CREATED: 'transaction-created',
   GET_BALANCE: 'get-balance',
   BALANCE_RESPONSE: 'balance-response',
   VERIFY_TRANSACTION: 'verify-transaction',
-  TRANSACTION_VERIFICATION: 'transaction-verification',
-  
+  TRANSACTION_VERIFIED: 'transaction-verified',
+
   // Block Operations
   VERIFY_BLOCK: 'verify-block',
-  BLOCK_VERIFICATION: 'block-verification',
-  
-  // Node Synchronization
-  SYNC_NODES: 'sync-nodes',
-  SYNC_COMPLETE: 'sync-complete',
+  BLOCK_VERIFIED: 'block-verified',
+
+  // Token Operations
+  VERIFY_TOKEN_HASH: 'verify-token-hash',
+  TOKEN_HASH_VERIFICATION: 'token-hash-verification',
+  TOKEN_HASH_CREATED: 'token-hash-created',
 
   // Wallet Operations
   GET_WALLETS: 'get-wallets',
@@ -45,7 +44,9 @@ export const P2P_MESSAGE_TYPES = {
   WALLET_STATUS_RESPONSE: 'wallet-status-response',
   CREATE_WALLET: 'create-wallet',
   WALLET_CREATED: 'wallet-created'
-};
+} as const;
+
+export type P2PMessageType = keyof typeof P2P_MESSAGE_TYPES;
 
 export const TX_ENDPOINTS = {
   createtransaction: "/transaction",

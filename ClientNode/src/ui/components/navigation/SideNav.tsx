@@ -84,7 +84,7 @@ const navLinks: link[] = [
 ];
 
 const mynodeSubLinks: Partial<link>[] = [
-  { path: "node-manager", title: "Get Node Token" },
+  { path: "my-node", title: "Create Token" },
   { path: "my-node/network-activity", title: "Network Activity" },
   { path: "my-node/verify", title: "Verify Hashes" },
   { path: "my-node/messages", title: "Messages" },

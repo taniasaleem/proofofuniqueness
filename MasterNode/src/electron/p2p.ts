@@ -79,7 +79,9 @@ export class P2PService {
         try {
           const peerList = this.getPeerListString()
           console.log('Sending peer list:', peerList)
-          await stream.sink([new TextEncoder().encode(peerList)])
+          const encoder = new TextEncoder()
+          const peerListBytes = encoder.encode(peerList)
+          await stream.sink([peerListBytes])
           await stream.close()
         } catch (err) {
           console.error('Error sending peer list:', err)
@@ -89,9 +91,24 @@ export class P2PService {
       // Handle P2P protocol
       this.node.handle(P2P_PROTOCOL, async ({ stream }: { stream: Stream }) => {
         try {
-          const data = await stream.source.next()
-          if (data.value) {
-            const message = JSON.parse(new TextDecoder().decode(data.value))
+          const chunks = []
+          for await (const chunk of stream.source) {
+            chunks.push(chunk)
+          }
+          
+          if (chunks.length > 0) {
+            // Convert Uint8ArrayList to Uint8Array
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
+            const data = new Uint8Array(totalLength)
+            let offset = 0
+            for (const chunk of chunks) {
+              // Convert each chunk to Uint8Array using slice
+              const chunkArray = new Uint8Array(chunk.slice())
+              data.set(chunkArray, offset)
+              offset += chunkArray.length
+            }
+            
+            const message = JSON.parse(new TextDecoder().decode(data))
             this.handleMessage(message)
           }
           await stream.close()
@@ -171,13 +188,13 @@ export class P2PService {
     })
   }
 
-  private getPeerListString() {
-    const peerList = Array.from(connectedPeers.entries()).map(([id, peer]) => ({
-      id,
+  private getPeerListString(): string {
+    const peers = Array.from(connectedPeers.values()).map(peer => ({
+      id: peer.id.toString(),
       connectedAt: peer.connectedAt.toISOString(),
       lastSeen: peer.lastSeen.toISOString()
     }))
-    return JSON.stringify(peerList)
+    return JSON.stringify(peers)
   }
 
   private async broadcastPeerList() {
@@ -187,7 +204,9 @@ export class P2PService {
     for (const [peerId, peer] of connectedPeers) {
       try {
         const stream = await this.node.dialProtocol(peer.id, PEERLIST_PROTOCOL)
-        await stream.sink([new TextEncoder().encode(peerList)])
+        const encoder = new TextEncoder()
+        const peerListBytes = encoder.encode(peerList)
+        await stream.sink([peerListBytes])
         await stream.close()
         console.log(`Sent peer list to: ${peerId}`)
       } catch (err) {
@@ -298,12 +317,24 @@ export class P2PService {
         timestamp: new Date().toISOString()
       };
 
+      // Create a new stream for each message
       const stream = await this.node.dialProtocol(peer.id, P2P_PROTOCOL);
-      await stream.sink([new TextEncoder().encode(JSON.stringify(messageWithTimestamp))]);
-      await stream.close();
       
-      // Update last seen timestamp
-      peer.lastSeen = new Date();
+      try {
+        // Create a source that yields the message
+        const source = (async function* () {
+          yield new TextEncoder().encode(JSON.stringify(messageWithTimestamp));
+        })();
+
+        // Send the message
+        await stream.sink(source);
+        
+        // Update last seen timestamp
+        peer.lastSeen = new Date();
+      } finally {
+        // Always close the stream
+        await stream.close();
+      }
     } catch (error) {
       console.error('Error sending P2P message:', error);
       throw error;
@@ -322,6 +353,7 @@ export class P2PService {
     if (!message.type) {
       throw new Error('Message must include a type field');
     }
+    console.log("Broadcasting message:", message);
 
     const results = [];
     for (const [peerId, peer] of connectedPeers) {
@@ -330,7 +362,11 @@ export class P2PService {
         results.push({ peerId, success: true });
       } catch (error) {
         console.error(`Error broadcasting to peer ${peerId}:`, error);
-        results.push({ peerId, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+        results.push({ 
+          peerId, 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
       }
     }
     return results;
