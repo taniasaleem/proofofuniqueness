@@ -47,22 +47,33 @@ export const addIdentity = async (address: string, privateKey: string) => {
   });
 };
 
-export const registerTokenHash = async (serialNumber: string, hash: string) => {
-  return new Promise((resolve, reject) => {
-    if (!p2pService.isServiceConnected()) {
-      reject(new Error('P2P connection is not available'));
-      return;
-    }
+export type TokenHashRegistrationResponse = {
+  serialNumber: string;
+  hash: string;
+  timestamp: number;
+  success: boolean;
+};
 
+export const registerTokenHash = async (serialNumber: string, hash: string): Promise<TokenHashRegistrationResponse> => {
+  if (!p2pService.isServiceConnected()) {
+    throw new Error('P2P connection is not available');
+  }
+
+  return new Promise<TokenHashRegistrationResponse>((resolve, reject) => {
     const handler = (message: any) => {
       if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
         p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
-        resolve(message.data);
+        resolve({
+          serialNumber,
+          hash,
+          timestamp: Date.now(),
+          success: true
+        });
       }
     };
 
     p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
-    p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, { serialNumber, hash, timestamp: Date.now() });
   });
 };
 

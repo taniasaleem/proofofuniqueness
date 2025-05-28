@@ -24,10 +24,16 @@ declare global {
 
 // Define valid channels for security
 const validSendChannels = ['p2p-send', 'p2p-get-peers'];
-const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-peers-list'];
+const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-peers-list', 'peer-connected', 'peer-disconnected'];
 
-console.log('=== Preload Script Initialization ===');
-console.log('1. Environment Check:', {
+// Add debug logging function
+const debugLog = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${message}`, data ? data : '');
+};
+
+debugLog('=== Preload Script Initialization ===');
+debugLog('1. Environment Check:', {
   hasContextBridge: typeof contextBridge !== 'undefined',
   hasIpcRenderer: typeof ipcRenderer !== 'undefined',
   processType: process.type,
@@ -45,47 +51,62 @@ console.log('2. Initial Window State:', {
 try {
   console.log('3. Attempting to expose IPC API...');
   
-  // Create the API object
+  // Expose IPC API to renderer
   const electronAPI = {
     ipcRenderer: {
       send: (channel: string, data: any) => {
-        console.log('IPC send called with channel:', channel, 'data:', data);
-        
-        if (!data) {
-          console.error('IPC send called with undefined data');
-          return;
-        }
-        if (typeof data !== 'object') {
-          console.error('IPC send called with non-object data:', data);
-          return;
-        }
-        if (!data.type) {
-          console.error('IPC send called with data missing type:', data);
-          return;
-        }
-
-        if (validSendChannels.includes(channel)) {
-          try {
-            console.log('Sending valid IPC message:', {
-              channel,
-              type: data.type,
-              timestamp: new Date().toISOString()
-            });
-            ipcRenderer.send(channel, data);
-          } catch (error) {
-            console.error('Error sending IPC message:', error);
+        try {
+          // Validate channel
+          if (!channel || typeof channel !== 'string') {
+            console.error('Invalid IPC channel:', channel);
+            return;
           }
-        } else {
-          console.warn(`Attempted to send to unauthorized channel: ${channel}`);
-          throw new Error(`Unauthorized channel: ${channel}`);
+
+          // Validate data
+          if (data === undefined) {
+            console.error('IPC send called with undefined data');
+            return;
+          }
+
+          // Ensure data is an object
+          const messageData = typeof data === 'object' ? data : { data };
+
+          // Add timestamp if not present
+          if (!messageData.timestamp) {
+            messageData.timestamp = new Date().toISOString();
+          }
+
+          // Log the message being sent
+          console.log(`[${new Date().toISOString()}] IPC send called with channel: ${channel}`, messageData);
+
+          // Send the message
+          ipcRenderer.send(channel, messageData);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] Error in IPC send:`, error);
         }
       },
-      on: (channel: string, func: (...args: any[]) => void) => {
-        console.log('IPC on called with channel:', channel);
-        if (validReceiveChannels.includes(channel)) {
+
+      on: (channel: string, callback: (event: any, ...args: any[]) => void) => {
+        try {
+          // Validate channel
+          if (!channel || typeof channel !== 'string') {
+            console.error('Invalid IPC channel:', channel);
+            return;
+          }
+
+          // Validate callback
+          if (typeof callback !== 'function') {
+            console.error('Invalid callback function');
+            return;
+          }
+
+          // Log the listener being added
+          console.log(`[${new Date().toISOString()}] IPC on called with channel: ${channel}`);
+
+          // Add the listener
           ipcRenderer.on(channel, (event, ...args) => {
             try {
-              console.log('IPC received message:', { channel, args });
+              // Validate message structure
               if (!args || args.length === 0) {
                 console.error('IPC received empty message');
                 return;
@@ -97,28 +118,60 @@ try {
                 return;
               }
 
+              // Ensure message has required fields
               if (!message.type) {
-                message.type = channel;
+                console.error('IPC message missing type field:', message);
+                return;
               }
 
-              func(...args);
+              if (!message.timestamp) {
+                message.timestamp = new Date().toISOString();
+              }
+
+              // Add success field if missing
+              if (message.success === undefined) {
+                message.success = !message.error;
+              }
+
+              // Call the callback with the validated message
+              callback(event, message);
             } catch (error) {
               console.error('Error handling IPC message:', error);
+              // Send error back to renderer
+              ipcRenderer.send('p2p-error', {
+                type: 'error',
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                timestamp: new Date().toISOString()
+              });
             }
           });
-        } else {
-          console.warn(`Attempted to listen to unauthorized channel: ${channel}`);
-          throw new Error(`Unauthorized channel: ${channel}`);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] Error in IPC on:`, error);
         }
       },
-      removeListener: (channel: string, func: (...args: any[]) => void) => {
-        console.log('IPC removeListener called with channel:', channel);
-        if (validReceiveChannels.includes(channel)) {
-          console.log('Removing listener for channel:', channel);
-          ipcRenderer.removeListener(channel, func);
-        } else {
-          console.warn(`Attempted to remove listener from unauthorized channel: ${channel}`);
-          throw new Error(`Unauthorized channel: ${channel}`);
+
+      removeListener: (channel: string, callback: (event: any, ...args: any[]) => void) => {
+        try {
+          // Validate channel
+          if (!channel || typeof channel !== 'string') {
+            console.error('Invalid IPC channel:', channel);
+            return;
+          }
+
+          // Validate callback
+          if (typeof callback !== 'function') {
+            console.error('Invalid callback function');
+            return;
+          }
+
+          // Log the listener being removed
+          console.log(`[${new Date().toISOString()}] IPC removeListener called with channel: ${channel}`);
+
+          // Remove the listener
+          ipcRenderer.removeListener(channel, callback);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] Error in IPC removeListener:`, error);
         }
       }
     }
@@ -178,15 +231,15 @@ window.addEventListener('DOMContentLoaded', () => {
   // Test IPC functionality
   if (window.electron?.ipcRenderer) {
     console.log('2. Testing IPC functionality...');
-    try {
-      window.electron.ipcRenderer.send('p2p-send', {
-        type: 'test-message',
-        data: { message: 'Testing IPC from DOMContentLoaded' }
-      });
-      console.log('3. IPC test message sent successfully');
-    } catch (error) {
-      console.error('3. IPC test failed:', error);
-    }
+    // try {
+    //   window.electron.ipcRenderer.send('p2p-send', {
+    //     type: 'test-message',
+    //     data: { message: 'Testing IPC from DOMContentLoaded' }
+    //   });
+    //   console.log('3. IPC test message sent successfully');
+    // } catch (error) {
+    //   console.error('3. IPC test failed:', error);
+    // }
   } else {
     console.error('2. IPC functionality not available');
   }

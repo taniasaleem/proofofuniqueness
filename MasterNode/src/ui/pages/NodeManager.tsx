@@ -32,6 +32,7 @@ import { useTokenHash } from "../hooks/useTokenHash";
 import { TextInput } from "../components/global/Inputs";
 import { SubmitButton } from "../components/global/Buttons";
 import { HorizontalDivider } from "../components/global/Divider";
+import { registerTokenHash, TokenHashRegistrationResponse } from "../utils/api/masternode";
 
 // Initialize blockchain and node
 const localBlockchain = new Blockchain();
@@ -82,12 +83,33 @@ const NodeManager = (): JSX.Element => {
     isConnected,
     status: p2pStatus,
     isLoading,
+    error: p2pError
   } = useTokenHash();
 
   useEffect(() => {
-    // Initialize any necessary setup
+    // Initialize P2P connection
     log("Node Manager initialized");
-  }, []);
+    
+    // Monitor P2P connection status
+    if (!isConnected) {
+      console.log("P2P disconnected:", p2pStatus);
+      setStatus(p2pError || "P2P connection lost. Please check your connection.");
+    } else {
+      console.log("P2P connected");
+      setStatus("Connected to P2P network");
+    }
+  }, [isConnected, p2pStatus, p2pError]);
+
+  // Update UI when token hash data changes
+  useEffect(() => {
+    if (serialNumber) {
+      const tokenData = getTokenHashData(serialNumber);
+      if (tokenData) {
+        console.log("Token data updated:", tokenData);
+        setIsNodeActive(tokenData.verificationCount ? tokenData.verificationCount > 0 : false);
+      }
+    }
+  }, [serialNumber, getTokenHashData]);
 
   const generateToken = () => {
     try {
@@ -105,9 +127,11 @@ const NodeManager = (): JSX.Element => {
       );
 
       // Sign the token with the master node's key
-      token.signToken(masterNode.masterKeyPair);
+      const sig = token.signToken(masterNode.masterKeyPair);
+      console.log("Signature:", sig);
 
       setTempToken(token);
+      setSerialNumber(token.serialNumber);
       setShowConfirmation(true);
     } catch (error) {
       setStatus(
@@ -118,16 +142,28 @@ const NodeManager = (): JSX.Element => {
     }
   };
 
-  const handleConfirmToken = () => {
+  const handleConfirmToken = async () => {
     if (!tempToken) return;
 
-    setGeneratedToken(tempToken);
-    setTokenHash(tempToken.tokenHash);
-    setStatus("Token confirmed and stored");
+    try {
+      setStatus("Registering token hash...");
+      
+      // Register the token hash with the P2P network
+      await registerTokenHash(serialNumber, tempToken.tokenHash);
+      
+      
+      
+        setGeneratedToken(tempToken);
+        setTokenHash(tempToken.tokenHash);
+        setStatus("Token confirmed and registered successfully");
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setStatus(`Error registering token hash: ${errorMessage}`);
+      console.error("Token hash registration error:", error);
+    }
+    
     setShowConfirmation(false);
-
-    // Register the token hash with the P2P network
-    registerTokenHash(serialNumber, tempToken.tokenHash);
   };
 
   const handleCancelToken = () => {
@@ -143,8 +179,8 @@ const NodeManager = (): JSX.Element => {
     }
 
     if (!isConnected) {
-      setStatus(p2pStatus || "P2P connection not available. Please try again later.");
-      console.error('P2P connection error:', p2pStatus);
+      setStatus(p2pError || "P2P connection not available. Please try again later.");
+      console.error('P2P connection error:', p2pError);
       return;
     }
 
@@ -154,7 +190,7 @@ const NodeManager = (): JSX.Element => {
       const isValid = generatedToken.isValid(masterNode.masterPublicKey);
       
       // Then verify through P2P network
-      verifyTokenHash(serialNumber, generatedToken.tokenHash);
+      await verifyTokenHash(serialNumber, generatedToken.tokenHash);
       
       // Get verification result from P2P network
       const result = getVerificationResult(serialNumber);
@@ -175,28 +211,6 @@ const NodeManager = (): JSX.Element => {
       console.error("Verification error:", error);
     }
   };
-
-  // Update UI when token hash data changes
-  useEffect(() => {
-    if (serialNumber && serialNumber.trim()) {
-      const tokenData = getTokenHashData(serialNumber);
-      if (tokenData) {
-        console.log("Token data updated:", tokenData);
-        setIsNodeActive(tokenData.verificationCount ? tokenData.verificationCount > 0 : false);
-      }
-    }
-  }, [serialNumber, getTokenHashData]);
-
-  // Monitor P2P connection status
-  useEffect(() => {
-    if (!isConnected) {
-      console.log("P2P disconnected:", p2pStatus);
-      setStatus("P2P connection lost. Please check your connection.");
-    } else {
-      console.log("P2P connected");
-      setStatus("Connected to P2P network");
-    }
-  }, [isConnected, p2pStatus]);
 
   const handleSerialNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSerialNumber(e.target.value);

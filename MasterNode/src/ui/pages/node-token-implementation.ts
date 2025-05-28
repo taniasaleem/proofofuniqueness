@@ -1,6 +1,8 @@
 import CryptoJS from 'crypto-js';
 import * as EC from 'elliptic';
 import { IpcRenderer, ElectronAPI } from '../utils/api/types';
+import { p2pService } from '../utils/api/p2p';
+import { P2P_MESSAGE_TYPES } from '../utils/api/config';
 
 const ec = new EC.ec('secp256k1');
 
@@ -114,10 +116,11 @@ class NodeToken {
     ).toString();
   }
 
-  signToken(masterNodeKey: KeyPair): void {
+  signToken(masterNodeKey: KeyPair): string {
     const hashToken = this.calculateTokenHash();
     const sig = masterNodeKey.sign(hashToken, 'base64');
     this.signature = sig.toDER('hex');
+    return this.signature;
   }
 
   isValid(masterNodePublicKey: string): boolean {
@@ -358,28 +361,14 @@ class MasterNode extends Node {
   }
 
   private initializeP2P() {
-    // Set up P2P message handler
-    if (typeof window !== 'undefined' && window.electron) {
-      window.electron.ipcRenderer.on('p2p-message', (_event: any, message: any) => {
-        this.handleP2PMessage(message);
-      });
-    }
-  }
+    // Set up P2P message handlers using the P2P service
+    p2pService.onMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, (message) => {
+      this.handleTokenHashVerification(message);
+    });
 
-  private handleP2PMessage(message: any) {
-    switch (message.type) {
-      case 'verify-token-hash':
-        this.handleTokenHashVerification(message);
-        break;
-      case 'get-token-hash':
-        this.handleTokenHashRequest(message);
-        break;
-      case 'token-hash-created':
-        this.handleTokenHashCreated(message);
-        break;
-      default:
-        log(`Unknown message type: ${message.type}`, 'WARN');
-    }
+    p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, (message) => {
+      this.handleTokenHashCreated(message);
+    });
   }
 
   private handleTokenHashVerification(message: any) {
@@ -387,13 +376,10 @@ class MasterNode extends Node {
     const tokenData = this.tokenHashes.get(serialNumber);
     
     if (!tokenData) {
-      this.sendP2PMessage({
-        type: 'token-hash-verification',
-        data: {
-          serialNumber,
-          isValid: false,
-          error: 'Token hash not found'
-        }
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, {
+        serialNumber,
+        isValid: false,
+        error: 'Token hash not found'
       });
       return;
     }
@@ -403,28 +389,11 @@ class MasterNode extends Node {
       tokenData.verifiedBy.push(message.peerId || 'unknown');
     }
 
-    this.sendP2PMessage({
-      type: 'token-hash-verification',
-      data: {
-        serialNumber,
-        isValid,
-        verificationCount: tokenData.verifiedBy.length,
-        timestamp: Date.now()
-      }
-    });
-  }
-
-  private handleTokenHashRequest(message: any) {
-    const { serialNumber } = message.data;
-    const tokenData = this.tokenHashes.get(serialNumber);
-    
-    this.sendP2PMessage({
-      type: 'token-hash-response',
-      data: {
-        serialNumber,
-        data: tokenData || null,
-        timestamp: Date.now()
-      }
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, {
+      serialNumber,
+      isValid,
+      verificationCount: tokenData.verifiedBy.length,
+      timestamp: Date.now()
     });
   }
 
@@ -436,14 +405,6 @@ class MasterNode extends Node {
       verifiedBy: []
     });
     log(`Token hash registered for serial number: ${serialNumber}`, 'INFO');
-  }
-
-  private sendP2PMessage(message: any) {
-    if (typeof window !== 'undefined' && window.electron) {
-      window.electron.ipcRenderer.send('p2p-send', message);
-    } else {
-      log('IPC not available', 'ERROR');
-    }
   }
 
   createNodeToken(serialNumber: string, bankID: string, bankTimestamp: number, nodeType: string = 'S'): NodeToken {
@@ -465,13 +426,10 @@ class MasterNode extends Node {
     });
 
     // Broadcast the token hash registration to the P2P network
-    this.sendP2PMessage({
-      type: 'token-hash-created',
-      data: {
-        serialNumber,
-        hash,
-        timestamp: Date.now()
-      }
+    p2pService.sendMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, {
+      serialNumber,
+      hash,
+      timestamp: Date.now()
     });
 
     log(`Token hash registered for serial number: ${serialNumber}`, 'INFO');

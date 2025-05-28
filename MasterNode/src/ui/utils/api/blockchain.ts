@@ -15,93 +15,117 @@ export const blockchainAPI = {
   isConnected: () => p2pService.isServiceConnected(),
 
   // Node Management
-  getAllNodes: () => {
-    return new Promise<any>((resolve, reject) => {
+  getNodes: async () => {
+    return new Promise((resolve, reject) => {
       if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
+        reject(new Error('P2P connection is not available'));
         return;
       }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODES_RESPONSE);
-        resolve(data);
+
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.NODES_RESPONSE) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODES_RESPONSE);
+          resolve(message.data.nodes);
+        }
       };
+
       p2pService.onMessage(P2P_MESSAGE_TYPES.NODES_RESPONSE, handler);
       p2pService.sendMessage(P2P_MESSAGE_TYPES.GET_NODES, {});
     });
   },
 
-  addNode: (nodeData: { address: string; privateKey: string }) => {
-    return new Promise<any>((resolve, reject) => {
+  connectNode: async (nodeData: { address: string; privateKey: string }) => {
+    return new Promise((resolve, reject) => {
       if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
+        reject(new Error('P2P connection is not available'));
         return;
       }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODE_CONNECTED);
-        resolve(data);
+
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.NODE_CONNECTED) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODE_CONNECTED);
+          resolve(message.data);
+        }
       };
+
       p2pService.onMessage(P2P_MESSAGE_TYPES.NODE_CONNECTED, handler);
       p2pService.sendMessage(P2P_MESSAGE_TYPES.CONNECT, nodeData);
     });
   },
 
   // Token Operations
-  generateTokenHash: (serialNumber: string) => {
-    return new Promise<any>((resolve, reject) => {
+  registerTokenHash: async (serialNumber: string, hash: string) => {
+    return new Promise((resolve, reject) => {
       if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
+        reject(new Error('P2P connection is not available'));
         return;
       }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
-        resolve(data);
-      };
-      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
-      p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber });
-    });
-  },
 
-  verifyTokenHash: (serialNumber: string, hash: string) => {
-    return new Promise<any>((resolve, reject) => {
-      if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
-        return;
-      }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION);
-        resolve(data);
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
+          resolve(message.data);
+        }
       };
-      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, handler);
+
+      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
       p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber, hash });
     });
   },
 
-  // Chain Operations
-  getChainInfo: () => {
-    return new Promise<any>((resolve, reject) => {
+  verifyTokenHash: async (serialNumber: string) => {
+    return new Promise((resolve, reject) => {
       if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
+        reject(new Error('P2P connection is not available'));
         return;
       }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.CHAIN_INFO);
-        resolve(data);
+
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION);
+          resolve(message.data);
+        }
       };
+
+      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_VERIFICATION, handler);
+      p2pService.sendMessage(P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH, { serialNumber });
+    });
+  },
+
+  // Chain Operations
+  getChainInfo: async () => {
+    return new Promise((resolve, reject) => {
+      if (!p2pService.isServiceConnected()) {
+        reject(new Error('P2P connection is not available'));
+        return;
+      }
+
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.CHAIN_INFO) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.CHAIN_INFO);
+          resolve(message.data);
+        }
+      };
+
       p2pService.onMessage(P2P_MESSAGE_TYPES.CHAIN_INFO, handler);
       p2pService.sendMessage(P2P_MESSAGE_TYPES.GET_CHAIN_INFO, {});
     });
   },
 
-  getSupplyInfo: () => {
-    return new Promise<any>((resolve, reject) => {
+  getSupplyInfo: async () => {
+    return new Promise((resolve, reject) => {
       if (!p2pService.isServiceConnected()) {
-        reject(new Error('P2P service is not connected'));
+        reject(new Error('P2P connection is not available'));
         return;
       }
-      const handler = (data: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.SUPPLY_INFO);
-        resolve(data);
+
+      const handler = (message: any) => {
+        if (message.type === P2P_MESSAGE_TYPES.SUPPLY_INFO) {
+          p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.SUPPLY_INFO);
+          resolve(message.data);
+        }
       };
+
       p2pService.onMessage(P2P_MESSAGE_TYPES.SUPPLY_INFO, handler);
       p2pService.sendMessage(P2P_MESSAGE_TYPES.GET_SUPPLY_INFO, {});
     });

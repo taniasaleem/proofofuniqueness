@@ -1,4 +1,3 @@
-// WebSocket message types
 export const P2P_MESSAGE_TYPES = {
   // Connection
   CONNECT: 'connect',
@@ -11,6 +10,11 @@ export const P2P_MESSAGE_TYPES = {
   NODE_CONNECTED: 'node-connected',
   NODE_DISCONNECTED: 'node-disconnected',
 
+  // Wallet Operations
+  GET_WALLETS: 'get-wallets',
+  GET_WALLET_STATUS: 'get-wallet-status',
+  CREATE_WALLET: 'create-wallet',
+
   // Chain Operations
   GET_CHAIN_INFO: 'get-chain-info',
   CHAIN_INFO: 'chain-info',
@@ -18,6 +22,7 @@ export const P2P_MESSAGE_TYPES = {
   SUPPLY_INFO: 'supply-info',
   SYNC_REQUEST: 'sync-request',
   SYNC_RESPONSE: 'sync-response',
+  CHOOSE_PROPOSER: 'choose-proposer',
 
   // Transaction Operations
   CREATE_TRANSACTION: 'create-transaction',
@@ -34,8 +39,13 @@ export const P2P_MESSAGE_TYPES = {
   // Token Operations
   VERIFY_TOKEN_HASH: 'verify-token-hash',
   TOKEN_HASH_VERIFICATION: 'token-hash-verification',
-  TOKEN_HASH_CREATED: 'token-hash-created'
+  TOKEN_HASH_CREATED: 'token-hash-created',
+
+  // Test Messages
+  TEST_MESSAGE: 'test-message'
 } as const;
+
+export type P2PMessageType = keyof typeof P2P_MESSAGE_TYPES;
 
 // P2P Configuration
 export const P2P_CONFIG = {
@@ -55,7 +65,8 @@ export const P2P_CONFIG = {
   DISCOVERY_INTERVAL: 60000, // 1 minute
   BOOTSTRAP_NODES: [
     // Add bootstrap nodes here if needed
-  ]
+  ],
+  MESSAGE_TYPES: P2P_MESSAGE_TYPES
 } as const;
 
 // API Configuration

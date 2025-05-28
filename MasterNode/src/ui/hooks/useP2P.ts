@@ -1,12 +1,17 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { p2pService, blockchainAPI } from '../utils/api/p2p';
 import { IpcRenderer, ElectronAPI } from '../utils/api/types';
+import { P2P_MESSAGE_TYPES } from '../utils/api/config';
+
+type P2PMessageTypeValue = typeof P2P_MESSAGE_TYPES[keyof typeof P2P_MESSAGE_TYPES];
 
 interface P2PMessage {
-  type: string;
+  type: P2PMessageTypeValue;
   data: any;
   timestamp: number;
   peerId: string;
+  success?: boolean;
+  error?: string;
 }
 
 declare global {
@@ -22,6 +27,9 @@ const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const ELECTRON_API_CHECK_INTERVAL = 1000; // Check every second
 
 export const useP2P = () => {
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [error, setError] = useState<string | null>(null);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const [messages, setMessages] = useState<P2PMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -54,47 +62,33 @@ export const useP2P = () => {
   const getConnectedPeers = useCallback(() => {
     if (!checkElectronApi()) {
       console.warn('Electron API not available, retrying...');
-      return;
+      return Promise.reject(new Error('Electron API not available'));
     }
     
-    // Send the request with retry logic
-    const sendRequest = () => {
-      window.electron?.ipcRenderer.send('p2p-get-peers', { type: 'get-peers' });
-    };
+    return new Promise((resolve, reject) => {
+      // Set up response handler
+      const responseHandler = (response: any) => {
+        if (response.type === 'peers-response' || response.type === 'error') {
+          window.electron?.ipcRenderer.removeListener('p2p-message', responseHandler);
+          if (response.error) {
+            reject(new Error(response.error));
+          } else {
+            resolve(response.data);
+          }
+        }
+      };
 
-    // Initial request
-    sendRequest();
+      // Add response handler
+      window.electron?.ipcRenderer.on('p2p-message', responseHandler);
 
-    // Set up retry interval with exponential backoff
-    let retryCount = 0;
-    const maxRetries = 5;
-    const baseDelay = 2000; // 2 seconds
-
-    const retryInterval = setInterval(() => {
-      if (isConnected) {
-        clearInterval(retryInterval);
-        return;
-      }
-
-      retryCount++;
-      if (retryCount >= maxRetries) {
-        clearInterval(retryInterval);
-        setStatus('Connection failed after max retries');
-        return;
-      }
-
-      const delay = baseDelay * Math.pow(2, retryCount - 1);
-      sendRequest();
-    }, baseDelay);
-
-    // Clear interval after max time
-    setTimeout(() => {
-      clearInterval(retryInterval);
-      if (!isConnected) {
-        setStatus('Connection failed');
-      }
-    }, baseDelay * Math.pow(2, maxRetries));
-  }, [checkElectronApi, isConnected]);
+      // Send the request
+      window.electron?.ipcRenderer.send('p2p-send', {
+        type: 'get-nodes',
+        data: {},
+        timestamp: new Date().toISOString()
+      });
+    });
+  }, [checkElectronApi]);
 
   const attemptReconnect = useCallback(() => {
     if (!isComponentMountedRef.current) return;
@@ -131,6 +125,105 @@ export const useP2P = () => {
     });
     lastMessageTimestampRef.current = message.timestamp;
   }, []);
+
+  const handleMessage = useCallback((message: any) => {
+    if (!isComponentMountedRef.current) return;
+    
+    // Handle port messages
+    if (message.sender && message.ports) {
+      console.log('[P2P] Received port message, skipping type validation');
+      return;
+    }
+    
+    // Validate message structure
+    if (!message || typeof message !== 'object') {
+      console.error('Invalid message structure:', message);
+      return;
+    }
+
+    if (!message.type) {
+      console.error('Message missing type field:', message);
+      return;
+    }
+
+    // Validate message type
+    const validTypes = Object.values(P2P_MESSAGE_TYPES);
+    const isValidType = validTypes.includes(message.type as P2PMessageTypeValue);
+    if (!isValidType) {
+      console.warn(`Unknown message type: ${message.type}`);
+      return;
+    }
+
+    // Format the message with required fields
+    const formattedMessage: P2PMessage = {
+      type: message.type as P2PMessageTypeValue,
+      data: message.data || {},
+      timestamp: message.timestamp || Date.now(),
+      peerId: message.peerId || peerId,
+      success: message.success !== undefined ? message.success : !message.error,
+      error: message.error
+    };
+
+    console.log('[P2P] Formatted message:', formattedMessage);
+
+    addMessage(formattedMessage);
+    
+    // Update state based on message type
+    switch (formattedMessage.type) {
+      case P2P_MESSAGE_TYPES.NODES_RESPONSE:
+        setNodes(formattedMessage.data.nodes || []);
+        setConnectionStatus('connected');
+        break;
+      case P2P_MESSAGE_TYPES.NODE_CONNECTED:
+        setConnectionStatus('connected');
+        break;
+      case P2P_MESSAGE_TYPES.NODE_DISCONNECTED:
+        setConnectionStatus('disconnected');
+        break;
+      case P2P_MESSAGE_TYPES.ERROR:
+        setError(formattedMessage.data.error || 'Unknown error');
+        break;
+      default:
+        // Handle other message types
+        break;
+    }
+  }, [addMessage, peerId]);
+
+  const handlePeerConnected = useCallback((peerId: string) => {
+    if (!isComponentMountedRef.current) return;
+    console.log('[P2P] Peer connected:', peerId);
+    setConnectedPeers(prev => [...prev, peerId]);
+    setIsConnected(true);
+    setStatus('Connected');
+    reconnectAttemptsRef.current = 0;
+  }, []);
+
+  const handlePeerDisconnected = useCallback((peerId: string) => {
+    if (!isComponentMountedRef.current) return;
+    setConnectedPeers(prev => prev.filter(id => id !== peerId));
+    setIsConnected(false);
+    setStatus('Disconnected');
+    attemptReconnect();
+  }, [attemptReconnect]);
+
+  const handlePeersList = useCallback((peers: string[]) => {
+    if (!isComponentMountedRef.current) return;
+    setConnectedPeers(peers);
+    const newConnectionStatus = peers.length > 0;
+    setIsConnected(newConnectionStatus);
+    setStatus(newConnectionStatus ? 'Connected' : 'No peers connected');
+    if (newConnectionStatus) {
+      reconnectAttemptsRef.current = 0;
+    }
+  }, []);
+
+  const handleP2PError = useCallback((error: { message: string }) => {
+    if (!isComponentMountedRef.current) return;
+    console.error('P2P error:', error);
+    setIsConnected(false);
+    setStatus(error.message);
+    attemptReconnect();
+  }, [attemptReconnect]);
 
   useEffect(() => {
     isComponentMountedRef.current = true;
@@ -177,77 +270,6 @@ export const useP2P = () => {
     getConnectedPeers();
 
     // Set up event listeners
-    const handleMessage = (message: P2PMessage) => {
-      if (!isComponentMountedRef.current) return;
-      
-      // Validate message structure
-      if (!message || typeof message !== 'object') {
-        console.error('Invalid message structure:', message);
-        return;
-      }
-
-      if (!message.type) {
-        console.error('Message missing type field:', message);
-        return;
-      }
-
-      // Format the message with required fields
-      const formattedMessage = {
-        type: message.type,
-        data: message.data || {},
-        timestamp: message.timestamp || Date.now(),
-        peerId: message.peerId || peerId
-      };
-
-      console.log('[P2P] Formatted message:', formattedMessage);
-
-      addMessage(formattedMessage);
-      
-      // If we receive any message, we're connected
-      if (!isConnected) {
-        setIsConnected(true);
-        setStatus('Connected');
-        reconnectAttemptsRef.current = 0;
-      }
-    };
-
-    const handlePeerConnected = (peerId: string) => {
-      if (!isComponentMountedRef.current) return;
-      console.log('[P2P] Peer connected:', peerId);
-      setConnectedPeers(prev => [...prev, peerId]);
-      setIsConnected(true);
-      setStatus('Connected');
-      reconnectAttemptsRef.current = 0;
-    };
-
-    const handlePeerDisconnected = (peerId: string) => {
-      if (!isComponentMountedRef.current) return;
-      setConnectedPeers(prev => prev.filter(id => id !== peerId));
-      setIsConnected(false);
-      setStatus('Disconnected');
-      attemptReconnect();
-    };
-
-    const handlePeersList = (peers: string[]) => {
-      if (!isComponentMountedRef.current) return;
-      setConnectedPeers(peers);
-      const newConnectionStatus = peers.length > 0;
-      setIsConnected(newConnectionStatus);
-      setStatus(newConnectionStatus ? 'Connected' : 'No peers connected');
-      if (newConnectionStatus) {
-        reconnectAttemptsRef.current = 0;
-      }
-    };
-
-    const handleP2PError = (error: { message: string }) => {
-      if (!isComponentMountedRef.current) return;
-      console.error('P2P error:', error);
-      setIsConnected(false);
-      setStatus(error.message);
-      attemptReconnect();
-    };
-
-    // Register event listeners
     ipcRenderer.on('p2p-message', handleMessage);
     ipcRenderer.on('peer-connected', handlePeerConnected);
     ipcRenderer.on('peer-disconnected', handlePeerDisconnected);
@@ -262,42 +284,65 @@ export const useP2P = () => {
       ipcRenderer.removeListener('peers-list', handlePeersList);
       ipcRenderer.removeListener('p2p-error', handleP2PError);
     };
-  }, [checkElectronApi, attemptReconnect, addMessage, getConnectedPeers]);
+  }, [checkElectronApi, handleMessage, handlePeerConnected, handlePeerDisconnected, handlePeersList, handleP2PError, getConnectedPeers]);
 
   const sendMessage = useCallback((data: any) => {
     if (!checkElectronApi()) {
       console.warn('Electron API not available, cannot send message');
-      return;
+      return Promise.reject(new Error('Electron API not available'));
     }
 
     if (!data || typeof data !== 'object') {
       console.error('Invalid message data:', data);
-      return;
+      return Promise.reject(new Error('Invalid message data'));
     }
+
+    console.log("Sending message1:**********", data);
 
     // Format the message with the correct structure
     const message = {
       type: data.type,
       data: data.data || {},
-      timestamp: Date.now(),
-      peerId: peerId
+      timestamp: new Date().toISOString()
     };
+
+    console.log("Sending message:**********", message);
 
     // Validate message structure
     if (!message.type) {
       console.error('Message missing required type field:', message);
-      return;
+      return Promise.reject(new Error('Message missing required type field'));
     }
 
-    try {
-      window.electron?.ipcRenderer.send('p2p-send', message);
-    } catch (error) {
-      console.error('Error sending P2P message:', error);
-      setStatus('Failed to send message');
-    }
-  }, [checkElectronApi, peerId]);
+    return new Promise((resolve, reject) => {
+      try {
+        // Set up response handler
+        const responseHandler = (response: any) => {
+          if (response.type === `${message.type}-response` || response.type === 'error') {
+            window.electron?.ipcRenderer.removeListener('p2p-message', responseHandler);
+            if (response.error) {
+              reject(new Error(response.error));
+            } else {
+              resolve(response.data);
+            }
+          }
+        };
+
+        // Add response handler
+        window.electron?.ipcRenderer.on('p2p-message', responseHandler);
+
+        // Send the message
+        window.electron?.ipcRenderer.send('p2p-send', message);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }, [checkElectronApi]);
 
   return {
+    nodes,
+    connectionStatus,
+    error,
     connectedPeers,
     messages,
     sendMessage,

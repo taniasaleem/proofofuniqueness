@@ -35,6 +35,7 @@ export const useTokenHash = () => {
     const registerTokenHash = useCallback((serialNumber: string, hash: string) => {
         setIsLoading(true);
         setError(null);
+        console.log("Registering token hash:", serialNumber, hash);
 
         try {
             sendMessage({

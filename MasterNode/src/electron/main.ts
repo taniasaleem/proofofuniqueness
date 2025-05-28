@@ -50,7 +50,7 @@ function createWindow() {
   if (fs.existsSync(preloadPath)) {
     console.log('Preload script found at:', preloadPath);
     const preloadContent = fs.readFileSync(preloadPath, 'utf-8');
-    console.log('Preload script content:', preloadContent);
+    // console.log('Preload script content:', preloadContent);
   } else {
     console.error('Preload script not found at:', preloadPath);
   }
@@ -76,18 +76,18 @@ function createWindow() {
       console.log('Current peers:', p2pService.getPeers());
 
       // Test IPC communication with P2P
-      mainWindow.webContents.executeJavaScript(`
-        console.log('Testing P2P IPC API...');
-        if (window.electron?.ipcRenderer) {
-          window.electron.ipcRenderer.send('p2p-send', {
-            type: 'test-message',
-            data: { message: 'Hello from renderer!' }
-          });
-          window.electron.ipcRenderer.send('p2p-get-peers');
-        } else {
-          console.error('Electron API not available in renderer');
-        }
-      `);
+      // mainWindow.webContents.executeJavaScript(`
+      //   console.log('Testing P2P IPC API...');
+      //   if (window.electron?.ipcRenderer) {
+      //     window.electron.ipcRenderer.send('p2p-send', {
+      //       type: 'test-message',
+      //       data: { message: 'Hello from renderer!' }
+      //     });
+      //     window.electron.ipcRenderer.send('p2p-get-peers');
+      //   } else {
+      //     console.error('Electron API not available in renderer');
+      //   }
+      // `);
     }
   });
 }
@@ -108,67 +108,98 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Add debug logging function
+const debugLog = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${message}`, data ? data : '');
+};
+
 // P2P message handlers
 ipcMain.on('p2p-send', async (event, message) => {
   try {
+    debugLog('Received P2P send request:', message);
+
     if (!message || !message.type) {
       throw new Error('Invalid message format');
     }
 
     // Forward the message to the P2P service
-    const response = await p2pService.sendMessage(message.type, message.data);
+    await p2pService.broadcastMessage(message);
     
     // Send the response back to the renderer
-    event.reply('p2p-message', {
+    const response = {
       type: message.type,
-      data: response
-    });
+      success: true,
+      data: { message: 'Message broadcast successfully' },
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Sending P2P response:', response);
+    event.reply('p2p-message', response);
   } catch (error) {
-    console.error('Error handling P2P message:', error);
-    event.reply('p2p-error', {
-      type: message?.type,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    debugLog('Error handling P2P message:', error);
+    const errorResponse = {
+      type: message?.type || 'unknown',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Sending P2P error response:', errorResponse);
+    event.reply('p2p-error', errorResponse);
   }
 });
 
 ipcMain.on('p2p-get-peers', async (event) => {
   try {
-    const peers = await p2pService.getPeers();
-    event.reply('p2p-message', {
+    debugLog('Received get-peers request');
+    const peers = p2pService.getPeers();
+    const response = {
       type: 'peers-response',
-      data: peers
-    });
+      success: true,
+      data: peers,
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Sending peers response:', response);
+    event.reply('p2p-message', response);
   } catch (error) {
-    console.error('Error getting peers:', error);
-    event.reply('p2p-error', {
+    debugLog('Error getting peers:', error);
+    const errorResponse = {
       type: 'peers-response',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Sending peers error response:', errorResponse);
+    event.reply('p2p-error', errorResponse);
   }
 });
 
 // Set up P2P message forwarding to renderer
 p2pService.onPeerConnect((peerId: string) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('p2p-message', {
+    const message = {
       type: 'peer-connected',
+      success: true,
       data: {
         peerId,
         timestamp: new Date().toISOString()
-      }
-    });
+      },
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Peer connected:', message);
+    mainWindow.webContents.send('p2p-message', message);
   }
 });
 
 p2pService.onPeerDisconnect((peerId: string) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('p2p-message', {
+    const message = {
       type: 'peer-disconnected',
+      success: true,
       data: {
         peerId,
         timestamp: new Date().toISOString()
-      }
-    });
+      },
+      timestamp: new Date().toISOString()
+    };
+    debugLog('Peer disconnected:', message);
+    mainWindow.webContents.send('p2p-message', message);
   }
 });

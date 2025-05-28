@@ -1,5 +1,6 @@
 // import { blockchainAPI } from "./websocket";
 import { blockchainAPI } from "./p2p";
+import { P2P_MESSAGE_TYPES } from './config';
 
 export type walletstatus = {
   address: string;
@@ -24,15 +25,15 @@ export const getWallets = async (): Promise<{
   count: number;
   wallets: wallettype[];
 }> => {
-  return blockchainAPI.sendMessage("get-wallets", {});
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.GET_WALLETS, {});
 };
 
 export const getWalletStatus = async (
   address: string
 ): Promise<walletstatus> => {
-  return blockchainAPI.sendMessage("get-wallet-status", { address });
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.GET_WALLET_STATUS, { address });
 };
 
 export const createWallet = async (): Promise<createwallettres> => {
-  return blockchainAPI.sendMessage("create-wallet", {});
+  return blockchainAPI.sendMessage(P2P_MESSAGE_TYPES.CREATE_WALLET, {});
 };
