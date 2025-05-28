@@ -1,9 +1,9 @@
 import React, { useEffect, useState, JSX } from "react";
 import {
   Blockchain,
-  Node,
+  // Node,
   NodeToken,
-  Transaction,
+  // Transaction,
   log,
   MasterNode,
 } from "./node-token-implementation";
@@ -29,15 +29,15 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { useTokenHash } from "../hooks/useTokenHash";
-import { TextInput } from "../components/global/Inputs";
-import { SubmitButton } from "../components/global/Buttons";
-import { HorizontalDivider } from "../components/global/Divider";
-import { registerTokenHash, TokenHashRegistrationResponse } from "../utils/api/masternode";
+// import { TextInput } from "../components/global/Inputs";
+// import { SubmitButton } from "../components/global/Buttons";
+// import { HorizontalDivider } from "../components/global/Divider";
+// import { registerTokenHash, TokenHashRegistrationResponse } from "../utils/api/masternode";
 
 // Initialize blockchain and node
 const localBlockchain = new Blockchain();
 const masterNode = new MasterNode(localBlockchain);
-const userNode = new Node(localBlockchain);
+// const userNode = new Node(localBlockchain);
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   padding: theme.spacing(4),
@@ -71,15 +71,15 @@ const NodeManager = (): JSX.Element => {
   const [isNodeActive, setIsNodeActive] = useState(false);
   const [verificationResult, setVerificationResult] =
     useState<VerificationResult | null>(null);
-  const [tokenHash, setTokenHash] = useState<string>("");
+  // const [tokenHash, setTokenHash] = useState<string>("");
 
   const {
     registerTokenHash,
     verifyTokenHash,
-    getTokenHash,
+    // getTokenHash,
     getTokenHashData,
     getVerificationResult,
-    getVerificationStatus,
+    // getVerificationStatus,
     isConnected,
     status: p2pStatus,
     isLoading,
@@ -154,7 +154,7 @@ const NodeManager = (): JSX.Element => {
       
       
         setGeneratedToken(tempToken);
-        setTokenHash(tempToken.tokenHash);
+        // setTokenHash(tempToken.tokenHash);
         setStatus("Token confirmed and registered successfully");
       
     } catch (error) {

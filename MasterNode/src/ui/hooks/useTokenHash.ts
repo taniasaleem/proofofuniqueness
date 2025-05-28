@@ -14,7 +14,7 @@ interface TokenHashData {
 }
 
 export const useTokenHash = () => {
-    const [tokenHash, setTokenHash] = useState<TokenHash | null>(null);
+    // const [tokenHash, setTokenHash] = useState<TokenHash | null>(null);
     const [tokenHashData, setTokenHashData] = useState<TokenHashData>({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export const useTokenHash = () => {
     }, [tokenHashData]);
 
     return {
-        tokenHash,
+        // tokenHash,
         registerTokenHash,
         verifyTokenHash,
         getTokenHash,

@@ -1,6 +1,6 @@
 import CryptoJS from 'crypto-js';
 import * as EC from 'elliptic';
-import { IpcRenderer, ElectronAPI } from '../utils/api/types';
+import {  ElectronAPI } from '../utils/api/types';
 import { p2pService } from '../utils/api/p2p';
 import { P2P_MESSAGE_TYPES } from '../utils/api/config';
 

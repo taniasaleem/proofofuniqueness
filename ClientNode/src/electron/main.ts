@@ -67,7 +67,8 @@ async function createWindow() {
   if (process.env.NODE_ENV === 'development') {
     try {
       console.log('[Main] Loading development server');
-      await mainWindow.loadURL('http://localhost:3002');
+      const port = process.env.VITE_DEV_SERVER_PORT || '3001';
+      await mainWindow.loadURL(`http://localhost:${port}`);
       mainWindow.webContents.openDevTools();
       console.log('[Main] Development server loaded successfully');
     } catch (error) {

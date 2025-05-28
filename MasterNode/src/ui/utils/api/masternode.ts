@@ -59,7 +59,7 @@ export const registerTokenHash = async (serialNumber: string, hash: string): Pro
     throw new Error('P2P connection is not available');
   }
 
-  return new Promise<TokenHashRegistrationResponse>((resolve, reject) => {
+  return new Promise<TokenHashRegistrationResponse>((resolve) => {
     const handler = (message: any) => {
       if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
         p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);

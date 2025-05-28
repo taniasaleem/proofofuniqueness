@@ -343,18 +343,8 @@ export const blockchainAPI = {
   },
 
   // Token Operations
-  handleTokenHashCreated: (data: any) => {
-    return new Promise<any>((resolve, reject) => {
-      if (!p2pService.isConnected()) {
-        reject(new Error('P2P service is not connected'));
-        return;
-      }
-      const handler = (response: any) => {
-        p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED);
-        resolve(response);
-      };
-      p2pService.onMessage(P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED, handler);
-    });
+  handleTokenHashCreated: () => {
+    // Handle token hash creation
   },
 
   verifyTokenHash: (serialNumber: string, hash: string) => {

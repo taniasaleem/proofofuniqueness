@@ -54,10 +54,12 @@ class P2PService {
     // Set up message listeners
     if (window.electron?.ipcRenderer) {
       window.electron.ipcRenderer.on('p2p-message', (event, message) => {
+        console.log('[P2P UI] Received message:', event);
         this.handleMessage(message);
       });
 
       window.electron.ipcRenderer.on('p2p-error', (event, error) => {
+        console.log('[P2P UI] Received error:', event);
         console.error('P2P Error:', error);
       });
     }

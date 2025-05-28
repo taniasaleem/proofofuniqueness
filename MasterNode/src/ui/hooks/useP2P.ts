@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { p2pService, blockchainAPI } from '../utils/api/p2p';
-import { IpcRenderer, ElectronAPI } from '../utils/api/types';
+// import { p2pService, blockchainAPI } from '../utils/api/p2p';
+import {  ElectronAPI } from '../utils/api/types';
 import { P2P_MESSAGE_TYPES } from '../utils/api/config';
 
 type P2PMessageTypeValue = typeof P2P_MESSAGE_TYPES[keyof typeof P2P_MESSAGE_TYPES];
@@ -129,6 +129,7 @@ export const useP2P = () => {
   const handleMessage = useCallback((message: any) => {
     if (!isComponentMountedRef.current) return;
     
+    setPeerId(message.peerId);
     // Handle port messages
     if (message.sender && message.ports) {
       console.log('[P2P] Received port message, skipping type validation');

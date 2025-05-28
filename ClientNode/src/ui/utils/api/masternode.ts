@@ -17,5 +17,5 @@ export const addIdentity = async (address: string, privateKey: string) => {
 };
 
 export const verifyTokenHash = async (serialNumber: string, hash: string) => {
-  return blockchainAPI.verifyToken(serialNumber, hash);
+  return blockchainAPI.sendMessage('verify-token', { serialNumber, hash });
 };

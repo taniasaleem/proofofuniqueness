@@ -17,7 +17,7 @@ export default function MyNode() {
   const [tokenHash, setTokenHash] = useState<string>("-");
 
   // Use the token hash hook for real-time status
-  const { isConnected, getTokenHash, getTokenHashData } = useP2P();
+  const { isConnected, getTokenHashData } = useP2P();
 
   // Update connection status when P2P connection changes
   useEffect(() => {
