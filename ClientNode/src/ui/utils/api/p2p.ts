@@ -12,6 +12,13 @@ declare global {
       sendMessage: (type: string, data: any) => Promise<void>;
       onMessage: (handler: (message: P2PMessage) => void) => void;
       offMessage: (handler: (message: P2PMessage) => void) => void;
+      getStatus: () => Promise<{ isConnected: boolean; isInitialized: boolean }>;
+      connect: () => Promise<void>;
+      disconnect: () => Promise<void>;
+      onConnectionProgress: (handler: (progress: any) => void) => void;
+      onConnected: (handler: () => void) => void;
+      onDisconnected: (handler: () => void) => void;
+      onError: (handler: (error: any) => void) => void;
     }
   }
 }
@@ -40,6 +47,8 @@ export class P2PService {
   private messageQueue: Array<{ type: string; data: any }> = [];
   private isReady = false;
   private nodeInfo: NodeInfo | null = null;
+  private connectionStatus: 'disconnected' | 'connecting' | 'connected' = 'disconnected';
+  private isInitialized = false;
 
   constructor() {
     this.initialize();
@@ -47,12 +56,10 @@ export class P2PService {
 
   private async initialize() {
     try {
-      // Get initial node info
-      this.nodeInfo = await window.p2p.getNodeInfo();
-      this.clientId = this.nodeInfo.peerId;
-      this.isReady = true;
-      console.log('P2P service initialized with peer ID:', this.clientId);
-      
+      // Get initial node info - this should work even without connection
+      await this.updateNodeInfo();
+      this.isInitialized = true;
+
       // Set up message handler
       window.p2p.onMessage((message: P2PMessage) => {
         console.log('Received P2P message:', message);
@@ -61,82 +68,210 @@ export class P2PService {
           handlers.forEach(handler => handler(message.data));
         }
       });
-      
-      // Process any queued messages
-      this.processMessageQueue();
 
-      // Set up periodic peer list updates
-      this.startPeerListUpdates();
+      // Set up connection status handlers
+      window.p2p.onConnected(() => {
+        console.log('[P2PService] Connected to P2P network');
+        this.connectionStatus = 'connected';
+        this.isReady = true;
+        this.processMessageQueue();
+        this.startPeerListUpdates();
+      });
+
+      window.p2p.onDisconnected(() => {
+        console.log('[P2PService] Disconnected from P2P network');
+        this.connectionStatus = 'disconnected';
+        this.isReady = false;
+        // initiate connection attempts
+      });
+
+      window.p2p.onError((error) => {
+        console.error('[P2PService] P2P error:', error);
+        if (this.connectionStatus === 'connecting') {
+          this.connectionStatus = 'disconnected';
+        }
+      });
+
+      // Get initial connection status
+      const status = await window.p2p.getStatus();
+      if (status.isConnected) {
+        this.connectionStatus = 'connected';
+        this.isReady = true;
+        this.processMessageQueue();
+        this.startPeerListUpdates();
+      } else if (status.isInitialized) {
+        // If node is initialized but not connected, start connection attempts
+        await this.connect();
+      }
     } catch (error) {
       console.error('Error initializing P2P service:', error);
       this.isReady = false;
+      this.connectionStatus = 'disconnected';
     }
   }
 
-  private startPeerListUpdates() {
-    // Update peer list every 30 seconds
-    setInterval(async () => {
+  private async updateNodeInfo() {
+    try {
+      this.nodeInfo = await window.p2p.getNodeInfo();
+      this.clientId = this.nodeInfo.peerId;
+      console.log('[P2PService] Updated node info:', this.nodeInfo);
+      return this.nodeInfo;
+    } catch (error) {
+      console.error('[P2PService] Error updating node info:', error);
+      throw error;
+    }
+  }
+
+  public async getNodeInfo(): Promise<NodeInfo | null> {
+    if (!this.nodeInfo) {
       try {
+        return await this.updateNodeInfo();
+      } catch (error) {
+        console.error('[P2PService] Error getting node info:', error);
+        return null;
+      }
+    }
+    return this.nodeInfo;
+  }
+
+  public async connect() {
+    if (this.connectionStatus !== 'disconnected') {
+      console.log(`[P2PService] Cannot connect: current status is ${this.connectionStatus}`);
+      return;
+    }
+
+    this.connectionStatus = 'connecting';
+    try {
+      console.log('[P2PService] Initiating connection to P2P network');
+      await window.p2p.connect();
+    } catch (error) {
+      console.error('[P2PService] Connection error:', error);
+      this.connectionStatus = 'disconnected';
+      throw error;
+    }
+  }
+
+  public async disconnect() {
+    if (this.connectionStatus === 'disconnected') {
+      console.log('[P2PService] Already disconnected');
+      return;
+    }
+
+    try {
+      await window.p2p.disconnect();
+      this.connectionStatus = 'disconnected';
+      this.isReady = false;
+    } catch (error) {
+      console.error('[P2PService] Error disconnecting:', error);
+      throw error;
+    }
+  }
+
+  public async sendMessage(type: string, data: any) {
+    if (!this.isConnected()) {
+      console.log('[P2PService] Not connected, queueing message:', { type, data });
+      this.messageQueue.push({ type, data });
+      return;
+    }
+
+    try {
+      await window.p2p.sendMessage(type, data);
+    } catch (error) {
+      console.error('[P2PService] Error sending message:', error);
+      throw error;
+    }
+  }
+
+  private processMessageQueue() {
+    if (!this.isConnected()) {
+      console.log('[P2PService] Not connected, cannot process message queue');
+      return;
+    }
+
+    console.log(`[P2PService] Processing ${this.messageQueue.length} queued messages`);
+    while (this.messageQueue.length > 0) {
+      const message = this.messageQueue.shift();
+      if (message) {
+        this.sendMessage(message.type, message.data).catch(error => {
+          console.error('[P2PService] Error processing queued message:', error);
+        });
+      }
+    }
+  }
+
+  public isConnected(): boolean {
+    return this.connectionStatus === 'connected' && this.isReady;
+  }
+
+  public getConnectionStatus() {
+    return this.connectionStatus;
+  }
+
+  public isNodeInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  private startPeerListUpdates() {
+    if (!this.isConnected()) {
+      console.log('[P2PService] Not starting peer updates: not connected');
+      return;
+    }
+
+    console.log('[P2PService] Starting periodic peer list updates');
+    // Update peer list every 30 seconds
+    const updateInterval = setInterval(async () => {
+      if (!this.isConnected()) {
+        console.log('[P2PService] Stopping peer updates: no longer connected');
+        clearInterval(updateInterval);
+        return;
+      }
+
+      try {
+        console.log('[P2PService] Requesting peer list update');
         const peers = await window.p2p.getPeers();
         this.handlePeerListUpdate(peers);
       } catch (error) {
-        console.error('Error updating peer list:', error);
+        console.error('[P2PService] Error updating peer list:', error);
       }
     }, 30000);
+
+    // Do an initial update
+    this.updatePeerList();
+  }
+
+  private async updatePeerList() {
+    try {
+      console.log('[P2PService] Performing initial peer list update');
+      const peers = await window.p2p.getPeers();
+      this.handlePeerListUpdate(peers);
+    } catch (error) {
+      console.error('[P2PService] Error performing initial peer list update:', error);
+    }
   }
 
   private handlePeerListUpdate(peers: Peer[]) {
+    console.log('[P2PService] Handling peer list update:', peers);
     const handlers = this.messageHandlers.get('peer-list-update');
     if (handlers) {
       handlers.forEach(handler => handler(peers));
     }
   }
 
-  private processMessageQueue() {
-    if (!this.isReady || !this.clientId) {
-      console.log('Not ready to process message queue');
-      return;
+  public async getPeers(): Promise<Peer[]> {
+    if (!this.isConnected()) {
+      console.log('[P2PService] Cannot get peers: not connected');
+      return [];
     }
 
-    console.log(`Processing ${this.messageQueue.length} queued messages`);
-    while (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift();
-      if (message) {
-        this.sendMessageInternal(message.type, message.data);
-      }
+    try {
+      console.log('[P2PService] Getting peer list');
+      const peers = await window.p2p.getPeers();
+      console.log('[P2PService] Retrieved peers:', peers);
+      return peers;
+    } catch (error) {
+      console.error('[P2PService] Error getting peers:', error);
+      return [];
     }
-  }
-
-  private sendMessageInternal(type: string, data: any) {
-    if (!this.isReady || !this.clientId) {
-      throw new Error('P2P service is not ready');
-    }
-
-    const message: P2PMessage = {
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-      clientId: this.clientId
-    };
-
-    console.log('Sending P2P message:', {
-      type: message.type,
-      clientId: message.clientId,
-      data: message.data
-    });
-
-    // Send message through P2P network
-    window.p2p.sendMessage(type, data);
-  }
-
-  public sendMessage(type: string, data: any) {
-    if (!this.isReady || !this.clientId) {
-      console.log('P2P service not ready, queueing message:', { type, data });
-      this.messageQueue.push({ type, data });
-      return;
-    }
-
-    this.sendMessageInternal(type, data);
   }
 
   public onMessage(type: string, handler: (data: any) => void) {
@@ -154,24 +289,8 @@ export class P2PService {
     }
   }
 
-  public close() {
-    // Clear all message handlers
-    this.messageHandlers.clear();
-    this.clientId = null;
-    this.isReady = false;
-    this.nodeInfo = null;
-  }
-
-  public isConnected(): boolean {
-    return this.isReady && this.clientId !== null;
-  }
-
   public getClientId(): string | null {
     return this.clientId;
-  }
-
-  public getNodeInfo(): NodeInfo | null {
-    return this.nodeInfo;
   }
 }
 
@@ -387,9 +506,6 @@ export const blockchainAPI = {
   }
 };
 
-import { useState, useEffect, useCallback } from 'react';
-import { P2PAPI, TokenHashData } from '../../types';
-
 declare global {
   interface Window {
     electron: {
@@ -401,84 +517,3 @@ declare global {
     };
   }
 }
-
-export const useP2P = (): P2PAPI => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [tokenHashes, setTokenHashes] = useState<Map<string, TokenHashData>>(new Map());
-
-  useEffect(() => {
-    const handleConnection = () => setIsConnected(true);
-    const handleDisconnection = () => setIsConnected(false);
-    const handleError = (error: any) => console.error('P2P error:', error);
-    const handleMessage = (message: any) => {
-      console.log('Received P2P message:', message);
-      if (message.type === P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED) {
-        const { serialNumber, hash } = message.data;
-        console.log('Processing token hash created message:', { serialNumber, hash });
-        setTokenHashes(prev => {
-          const newMap = new Map(prev);
-          newMap.set(serialNumber, {
-            hash,
-            serialNumber,
-            timestamp: new Date().toISOString(),
-            verified: true,
-            verificationCount: 0
-          });
-          return newMap;
-        });
-      }
-    };
-
-    window.electron.ipcRenderer.on('p2p:connected', handleConnection);
-    window.electron.ipcRenderer.on('p2p:disconnected', handleDisconnection);
-    window.electron.ipcRenderer.on('p2p:error', handleError);
-    window.electron.ipcRenderer.on('p2p:message', handleMessage);
-
-    return () => {
-      window.electron.ipcRenderer.removeListener('p2p:connected', handleConnection);
-      window.electron.ipcRenderer.removeListener('p2p:disconnected', handleDisconnection);
-      window.electron.ipcRenderer.removeListener('p2p:error', handleError);
-      window.electron.ipcRenderer.removeListener('p2p:message', handleMessage);
-    };
-  }, []);
-
-  const registerTokenHash = useCallback(async (serialNumber: string, hash: string) => {
-    try {
-      await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: P2P_MESSAGE_TYPES.TOKEN_HASH_CREATED,
-        data: { serialNumber, hash }
-      });
-    } catch (error) {
-      console.error('Error registering token hash:', error);
-      throw error;
-    }
-  }, []);
-
-  const verifyTokenHash = useCallback(async (serialNumber: string, hash: string) => {
-    try {
-      await window.electron.ipcRenderer.invoke('p2p:send-message', {
-        type: P2P_MESSAGE_TYPES.VERIFY_TOKEN_HASH,
-        data: { serialNumber, hash }
-      });
-    } catch (error) {
-      console.error('Error verifying token hash:', error);
-      throw error;
-    }
-  }, []);
-
-  const getTokenHash = useCallback((serialNumber: string) => {
-    return tokenHashes.get(serialNumber)?.hash;
-  }, [tokenHashes]);
-
-  const getTokenHashData = useCallback((serialNumber: string) => {
-    return tokenHashes.get(serialNumber);
-  }, [tokenHashes]);
-
-  return {
-    isConnected,
-    registerTokenHash,
-    verifyTokenHash,
-    getTokenHash,
-    getTokenHashData
-  };
-};

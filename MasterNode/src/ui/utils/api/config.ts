@@ -1,7 +1,7 @@
 export const P2P_MESSAGE_TYPES = {
   // Connection
-  CONNECT: 'connect',
-  DISCONNECT: 'disconnect',
+  CONNECT: 'peer-connected',
+  DISCONNECT: 'peer-disconnected',
   ERROR: 'error',
 
   // Node Management

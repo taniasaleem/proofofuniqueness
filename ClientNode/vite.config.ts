@@ -8,10 +8,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      'buffer': 'buffer',
+      'buffer': 'buffer/',
       'process': 'process/browser',
       'stream': 'stream-browserify',
-      'util': 'util',
+      'util': 'util/',
       'crypto': 'crypto-browserify'
     },
   },
@@ -21,7 +21,10 @@ export default defineConfig({
         global: 'globalThis',
       },
     },
-    include: ['buffer', 'process', 'util', 'stream', 'crypto'],
+    include: [
+      'buffer',
+      'process'
+    ],
     exclude: ['electron']
   },
   base: "./",
@@ -39,8 +42,9 @@ export default defineConfig({
     strictPort: false,
   },
   define: {
-    'process.env': {},
+    'process.env': process.env,
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     'global': 'globalThis',
+    '__dirname': JSON.stringify(''),
   },
 });

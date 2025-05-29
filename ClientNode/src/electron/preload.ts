@@ -34,7 +34,8 @@ const validChannels = [
   'p2p:send-message',
   'p2p:get-node-info',
   'p2p:get-peers',
-  'p2p:get-status'
+  'p2p:get-status',
+  'p2p:connection-progress'
 ] as const;
 
 type ValidChannel = typeof validChannels[number];
@@ -84,7 +85,13 @@ try {
   // Expose P2P API
   contextBridge.exposeInMainWorld('p2p', {
     getStatus: () => ipcRenderer.invoke('p2p:get-status'),
-    getPeers: () => ipcRenderer.invoke('p2p:get-peers'),
+    getPeers: () => {
+      console.log('[Preload] Requesting peer list');
+      return ipcRenderer.invoke('p2p:get-peers');
+    },
+    getNodeInfo: () => ipcRenderer.invoke('p2p:get-node-info'),
+    connect: () => ipcRenderer.invoke('p2p:connect'),
+    disconnect: () => ipcRenderer.invoke('p2p:disconnect'),
     sendMessage: (type: string, data: any) => ipcRenderer.invoke('p2p:send-message', { type, data }),
     onMessage: (callback: (message: any) => void) => {
       ipcRenderer.on('p2p:message', (_event: Electron.IpcRendererEvent, message: any) => callback(message));
@@ -97,6 +104,13 @@ try {
     },
     onError: (callback: (error: any) => void) => {
       ipcRenderer.on('p2p:error', (_event: Electron.IpcRendererEvent, error: any) => callback(error));
+    },
+    onPeersUpdated: (callback: (peers: Peer[]) => void) => {
+      console.log('[Preload] Setting up peers-updated listener');
+      ipcRenderer.on('p2p:peers-updated', (_event: Electron.IpcRendererEvent, peers: Peer[]) => {
+        console.log('[Preload] Received peers update:', peers);
+        callback(peers);
+      });
     }
   });
 

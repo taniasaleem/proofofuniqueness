@@ -37,7 +37,9 @@ function createWindow() {
         'Content-Security-Policy': [
           "default-src 'self'",
           "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-          "style-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline' https:",
+          "style-src-elem 'self' 'unsafe-inline' https: data:",
+          "font-src 'self' data: https:",
           "img-src 'self' data: https:",
           "connect-src 'self' ws: wss: http: https:"
         ].join('; ')

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { builtinModules } from 'module';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -19,7 +20,12 @@ export default defineConfig({
       '@chainsafe/libp2p-yamux',
       'thunky',
       'multicast-dns'
-    ]
+    ],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis'
+      }
+    }
   },
   build: {
     outDir: "build-react",
@@ -36,9 +42,23 @@ export default defineConfig({
         '@chainsafe/libp2p-noise',
         '@chainsafe/libp2p-yamux',
         'thunky',
-        'multicast-dns'
+        'multicast-dns',
+        ...builtinModules
       ]
     }
+  },
+  resolve: {
+    alias: {
+      buffer: 'buffer/',
+      process: 'process/browser',
+      stream: 'stream-browserify',
+      util: 'util/',
+      crypto: 'crypto-browserify'
+    }
+  },
+  define: {
+    'process.env': {},
+    global: 'globalThis'
   },
   server: {
     port: 3000,

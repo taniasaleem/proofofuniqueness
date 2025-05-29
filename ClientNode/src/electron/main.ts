@@ -14,8 +14,6 @@ console.log('[Main] Current directory:', __dirname);
 
 let mainWindow: BrowserWindow | null = null;
 let p2pService: P2PService | null = null;
-const MAX_P2P_RETRIES = 5;
-let p2pRetryCount = 0;
 
 async function createWindow() {
   console.log('[Main] Creating main window');
@@ -50,8 +48,7 @@ async function createWindow() {
     console.log('[Main] Initializing P2P service');
     p2pService = new P2PService();
     await p2pService.initialize();
-    p2pRetryCount = 0; // Reset retry count on successful initialization
-    console.log('[Main] P2P service initialized successfully');
+    console.log('[Main] P2P service initialization completed');
   } catch (error) {
     console.error('[Main] Failed to initialize P2P service:', error);
     mainWindow?.webContents.send('p2p:error', { 
@@ -73,28 +70,12 @@ async function createWindow() {
       console.log('[Main] Development server loaded successfully');
     } catch (error) {
       console.error('[Main] Failed to load development server:', error);
-      // Fallback to production build if dev server is not available
-      console.log('[Main] Falling back to production build');
       await mainWindow.loadFile(path.join(__dirname, '../index.html'));
     }
   } else {
     console.log('[Main] Loading production build');
     await mainWindow.loadFile(path.join(__dirname, '../index.html'));
   }
-
-  // Handle window errors
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('[Main] Window failed to load:', errorCode, errorDescription);
-  });
-
-  mainWindow.on('unresponsive', () => {
-    console.error('[Main] Window became unresponsive');
-  });
-
-  // Handle renderer process crashes
-  mainWindow.webContents.on('render-process-gone', (event, details) => {
-    console.error('[Main] Renderer process crashed:', details);
-  });
 }
 
 function setupIpcHandlers() {
@@ -110,33 +91,33 @@ function setupIpcHandlers() {
   ipcMain.handle('p2p:connect', async () => {
     console.log('[Main] Handling p2p:connect request');
     try {
-      if (p2pRetryCount >= MAX_P2P_RETRIES) {
-        console.error('[Main] Maximum P2P connection retries exceeded');
-        throw new Error('Maximum P2P connection retries exceeded');
+      if (service.isConnected()) {
+        console.log('[Main] Already connected to P2P network');
+        return true;
       }
 
-      await service.initialize();
-      p2pRetryCount = 0; // Reset retry count on successful connection
-      mainWindow?.webContents.send('p2p:connected');
-      console.log('[Main] P2P connection established');
+      if (!service.isInitialized()) {
+        console.log('[Main] Initializing P2P service before connection');
+        await service.initialize();
+      }
+
+      console.log('[Main] Starting connection attempts');
+      service.startConnectionAttempts();
       return true;
     } catch (error: unknown) {
-      p2pRetryCount++;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('[Main] P2P connection error:', errorMessage);
-      mainWindow?.webContents.send('p2p:error', { 
-        message: errorMessage,
-        retryCount: p2pRetryCount,
-        maxRetries: MAX_P2P_RETRIES
-      });
+      mainWindow?.webContents.send('p2p:error', { message: errorMessage });
       throw error;
     }
   });
 
   ipcMain.handle('p2p:disconnect', async () => {
     try {
+      if (!service.isConnected()) {
+        console.log('[Main] Already disconnected from P2P network');
+        return true;
+      }
       await service.stop();
-      p2pRetryCount = 0; // Reset retry count on disconnect
       mainWindow?.webContents.send('p2p:disconnected');
       return true;
     } catch (error: unknown) {
@@ -146,16 +127,28 @@ function setupIpcHandlers() {
     }
   });
 
-  // Status handler
+  // Status handlers
   ipcMain.handle('p2p:get-status', async () => {
     console.log('[Main] Handling p2p:get-status request');
     try {
       const isConnected = service.isConnected();
-      console.log('[Main] P2P connection status:', isConnected);
-      return { isConnected };
+      const isInitialized = service.isInitialized();
+      console.log('[Main] P2P status:', { isConnected, isInitialized });
+      return { isConnected, isInitialized };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('[Main] Error getting P2P status:', errorMessage);
+      mainWindow?.webContents.send('p2p:error', { message: errorMessage });
+      throw error;
+    }
+  });
+
+  ipcMain.handle('p2p:get-node-info', async () => {
+    try {
+      const nodeInfo = await service.getNodeInfo();
+      return nodeInfo;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       mainWindow?.webContents.send('p2p:error', { message: errorMessage });
       throw error;
     }
@@ -165,7 +158,7 @@ function setupIpcHandlers() {
   ipcMain.handle('p2p:send-message', async (_, message: { type: string; data: any }) => {
     try {
       if (!service.isConnected()) {
-        throw new Error('P2P service is not connected');
+        throw new Error('Cannot send message: P2P service is not connected to master node');
       }
       await service.handleMessage(message.type, message.data);
       return true;
@@ -176,29 +169,20 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('p2p:get-node-info', async () => {
-    try {
-      if (!service.isConnected()) {
-        throw new Error('P2P service is not connected');
-      }
-      const nodeInfo = await service.getNodeInfo();
-      return nodeInfo;
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      mainWindow?.webContents.send('p2p:error', { message: errorMessage });
-      throw error;
-    }
-  });
-
+  // Peer list handlers
   ipcMain.handle('p2p:get-peers', async () => {
     try {
+      console.log('[Main] Handling get peers request');
       if (!service.isConnected()) {
-        throw new Error('P2P service is not connected');
+        console.log('[Main] Cannot get peers: not connected to master node');
+        return [];
       }
       const peers = await service.getPeers();
+      console.log('[Main] Retrieved peers:', peers);
       return peers;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('[Main] Error getting peers:', errorMessage);
       mainWindow?.webContents.send('p2p:error', { message: errorMessage });
       throw error;
     }

@@ -20,14 +20,17 @@ export class P2PService {
   private connectedPeers: Map<string, Peer>
   private isConnecting: boolean
   private readonly MASTER_ADDRESSES: string[]
-  private readonly RETRY_INTERVAL: number
-  private readonly MAX_RETRIES: number
-  private retryCount: number
+  private readonly INITIAL_RETRY_INTERVAL: number
+  private readonly MAX_RETRY_INTERVAL: number
+  private readonly RETRY_BACKOFF_FACTOR: number
+  private retryInterval: number
   private readonly PEERLIST_PROTOCOL: string
   private readonly MESSAGE_PROTOCOL: string
   private remotePeer: PeerId | null
   private mainWindow: BrowserWindow | null
   private reconnectTimeout: NodeJS.Timeout | null
+  private connectionAttempts: number
+  private nodeInitialized: boolean = false
 
   constructor() {
     this.clientnode = null
@@ -38,19 +41,26 @@ export class P2PService {
       '/ip4/172.24.128.1/tcp/10333',
       '/ip4/192.168.100.54/tcp/10333'
     ]
-    this.RETRY_INTERVAL = 5000
-    this.MAX_RETRIES = 5
-    this.retryCount = 0
+    this.INITIAL_RETRY_INTERVAL = 5000 // 5 seconds
+    this.MAX_RETRY_INTERVAL = 300000   // 5 minutes
+    this.RETRY_BACKOFF_FACTOR = 1.5
+    this.retryInterval = this.INITIAL_RETRY_INTERVAL
     this.PEERLIST_PROTOCOL = '/peerlist/1.0.0'
     this.MESSAGE_PROTOCOL = '/p2p/1.0.0'
     this.remotePeer = null
     this.mainWindow = BrowserWindow.getAllWindows()[0] || null
     this.reconnectTimeout = null
+    this.connectionAttempts = 0
   }
 
   async initialize(): Promise<Libp2p> {
     console.log('[P2PService] Starting initialization');
     try {
+      if (this.nodeInitialized && this.clientnode) {
+        console.log('[P2PService] Node already initialized');
+        return this.clientnode;
+      }
+
       console.log('[P2PService] Creating libp2p configuration');
       const config: Libp2pConfig = {
         addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] }
@@ -70,10 +80,12 @@ export class P2PService {
       console.log('[P2PService] Setting up IPC handlers');
       this.setupIpcHandlers();
       
-      console.log('[P2PService] Connecting to master node');
-      await this.tryConnectToMaster();
+      this.nodeInitialized = true;
+      console.log('[P2PService] Node initialization completed successfully');
 
-      console.log('[P2PService] Initialization completed successfully');
+      // Start connection attempts in the background
+      this.startConnectionAttempts();
+      
       return this.clientnode;
     } catch (error) {
       console.error('[P2PService] Error during initialization:', error);
@@ -136,7 +148,8 @@ export class P2PService {
         if (this.mainWindow) {
           this.mainWindow.webContents.send('p2p:disconnected');
         }
-        this.connectToMaster(multiaddr(this.MASTER_ADDRESSES[0]));
+        // Start connection attempts again
+        this.startConnectionAttempts();
       }
     });
 
@@ -152,6 +165,9 @@ export class P2PService {
         connectedAt: new Date().toISOString(),
         lastSeen: new Date().toISOString()
       });
+      
+      // Stop any ongoing connection attempts since we're now connected
+      this.stopConnectionAttempts();
       
       // Notify main window about connection
       if (this.mainWindow) {
@@ -213,15 +229,75 @@ export class P2PService {
     });
   }
 
-  private async connectToMaster(ma: Multiaddr): Promise<void> {
-    if (this.isConnecting || !this.clientnode) return
-    
-    this.isConnecting = true
+  public startConnectionAttempts() {
+    if (this.isConnecting || this.isConnected()) {
+      console.log('[P2PService] Already connecting or connected, skipping connection attempts');
+      return;
+    }
+
+    console.log('[P2PService] Starting connection attempts to master node');
+    this.isConnecting = true;
+    this.connectionAttempts = 0;
+    this.retryInterval = this.INITIAL_RETRY_INTERVAL;
+    this.attemptConnection();
+  }
+
+  private async attemptConnection() {
+    if (!this.isConnecting) {
+      console.log('[P2PService] Connection attempts stopped');
+      return;
+    }
+
+    if (this.isConnected()) {
+      console.log('[P2PService] Already connected, stopping connection attempts');
+      this.stopConnectionAttempts();
+      return;
+    }
+
     try {
-      console.log('Attempting to dial to master node...')
-      await this.clientnode.dial(ma)
-      console.log('Successfully dialed to master node')
-      this.retryCount = 0 // Reset retry count on successful connection
+      console.log(`[P2PService] Attempting to connect to master node (attempt ${this.connectionAttempts + 1})`);
+      await this.tryConnectToMaster();
+      
+      if (this.isConnected()) {
+        console.log('[P2PService] Successfully connected to master node');
+        this.stopConnectionAttempts();
+        if (this.mainWindow) {
+          this.mainWindow.webContents.send('p2p:connected');
+        }
+        return;
+      }
+    } catch (error) {
+      console.log('[P2PService] Connection attempt failed:', error);
+    }
+
+    // Only schedule next attempt if we're still not connected and still trying
+    if (!this.isConnected() && this.isConnecting) {
+      this.connectionAttempts++;
+      // Calculate next retry interval with exponential backoff
+      this.retryInterval = Math.min(
+        this.retryInterval * this.RETRY_BACKOFF_FACTOR,
+        this.MAX_RETRY_INTERVAL
+      );
+
+      console.log(`[P2PService] Retrying in ${this.retryInterval/1000} seconds...`);
+      
+      // Schedule next attempt
+      this.reconnectTimeout = setTimeout(() => {
+        this.attemptConnection();
+      }, this.retryInterval);
+    }
+  }
+
+  private async connectToMaster(ma: Multiaddr): Promise<void> {
+    if (!this.clientnode) return;
+    
+    try {
+      console.log('[P2PService] Attempting to dial to master node...');
+      await this.clientnode.dial(ma);
+      console.log('[P2PService] Successfully dialed to master node');
+      
+      // Stop any ongoing connection attempts since we're now connected
+      this.stopConnectionAttempts();
       
       // Notify main window about successful connection
       if (this.mainWindow) {
@@ -229,39 +305,32 @@ export class P2PService {
         this.mainWindow.webContents.send('p2p:connected');
       }
     } catch (err) {
-      console.log(`Failed to connect to master node, retrying in ${this.RETRY_INTERVAL / 1000}s...`)
-      this.retryCount++
-      
-      if (this.retryCount >= this.MAX_RETRIES) {
-        console.error('Maximum retry attempts reached')
-        this.isConnecting = false
-        return
-      }
+      console.log(`[P2PService] Failed to connect to master node: ${err}`);
+      throw err;
+    }
+  }
 
-      // Clear any existing timeout
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout)
-      }
-
-      // Schedule reconnection
-      this.reconnectTimeout = setTimeout(() => {
-        this.isConnecting = false
-        this.connectToMaster(ma)
-      }, this.RETRY_INTERVAL)
-    } finally {
-      if (!this.reconnectTimeout) {
-        this.isConnecting = false
-      }
+  public stopConnectionAttempts() {
+    console.log('[P2PService] Stopping connection attempts');
+    this.isConnecting = false;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
   }
 
   private async tryConnectToMaster(): Promise<void> {
+    if (this.isConnected()) {
+      console.log('[P2PService] Already connected to master node, skipping connection attempt');
+      return;
+    }
+
     for (const addr of this.MASTER_ADDRESSES) {
       try {
         const ma = multiaddr(addr)
         await this.connectToMaster(ma)
         if (this.isConnected()) {
-          console.log(`Successfully connected to master node at ${addr}`)
+          console.log(`[P2PService] Successfully connected to master node at ${addr}`)
           return
         }
       } catch (err) {
@@ -271,79 +340,110 @@ export class P2PService {
   }
 
   private async requestPeerList(): Promise<void> {
-    if (!this.clientnode || !this.remotePeer) return
+    if (!this.clientnode || !this.remotePeer) {
+      console.log('[P2PService] Cannot request peer list: not connected to master node');
+      return;
+    }
 
     try {
-      const stream = await this.clientnode.dialProtocol(this.remotePeer as any, this.PEERLIST_PROTOCOL)
-      let data = new Uint8Array(0)
+      console.log('[P2PService] Requesting peer list from master node');
+      const stream = await this.clientnode.dialProtocol(this.remotePeer as any, this.PEERLIST_PROTOCOL);
+      let data = new Uint8Array(0);
+      
       for await (const chunk of stream.source) {
-        const buffer = (chunk as Uint8ArrayList).subarray()
-        const chunkArray = new Uint8Array(buffer)
-        const newData = new Uint8Array(data.length + chunkArray.length)
-        newData.set(data)
-        newData.set(chunkArray, data.length)
-        data = newData
+        const buffer = (chunk as Uint8ArrayList).subarray();
+        const chunkArray = new Uint8Array(buffer);
+        const newData = new Uint8Array(data.length + chunkArray.length);
+        newData.set(data);
+        newData.set(chunkArray, data.length);
+        data = newData;
       }
       
       if (data.length > 0) {
-        const peerListStr = new TextDecoder().decode(data)
+        const peerListStr = new TextDecoder().decode(data);
         if (peerListStr.trim()) {
-          const peers = JSON.parse(peerListStr) as Peer[]
-          this.updatePeerList(peers)
+          const peers = JSON.parse(peerListStr) as Peer[];
+          this.updatePeerList(peers);
         }
       }
     } catch (err) {
-      console.error('Error requesting peer list:', err)
+      console.error('[P2PService] Error requesting peer list:', err);
     }
   }
 
   private updatePeerList(peers: Peer[]): void {
-    if (!this.clientnode) return
+    if (!this.clientnode) return;
 
+    console.log('[P2PService] Updating peer list with:', peers);
     peers.forEach(peer => {
       if (peer.id !== this.clientnode?.peerId.toString()) {
         this.connectedPeers.set(peer.id, {
           id: peer.id,
           connectedAt: peer.connectedAt,
           lastSeen: peer.lastSeen
-        })
+        });
       }
-    })
-    this.logPeerList()
+    });
+
+    // Notify about peer list update
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('p2p:peers-updated', Array.from(this.connectedPeers.values()));
+    }
+
+    this.logPeerList();
   }
 
   private logPeerList(): void {
-    console.log('\nCurrent connected peers:')
+    console.log('\n[P2PService] Current connected peers:');
     if (this.connectedPeers.size === 0) {
-      console.log('No peers connected')
+      console.log('[P2PService] No peers connected');
     } else {
       this.connectedPeers.forEach((peer, id) => {
-        console.log(`- ${id}`)
-        console.log(`  Connected at: ${peer.connectedAt}`)
-        console.log(`  Last seen: ${peer.lastSeen}`)
-      })
+        console.log(`- ${id}`);
+        console.log(`  Connected at: ${peer.connectedAt}`);
+        console.log(`  Last seen: ${peer.lastSeen}`);
+      });
     }
-    console.log()
+    console.log();
   }
 
   async stop(): Promise<void> {
+    this.stopConnectionAttempts();
     if (this.clientnode) {
-      await this.clientnode.stop()
+      await this.clientnode.stop();
     }
   }
 
-  async getNodeInfo(): Promise<{ peerId: string; addresses: string[] }> {
-    if (!this.clientnode) {
-      throw new Error('P2P client not initialized')
+  public async getNodeInfo(): Promise<{ peerId: string; addresses: string[] }> {
+    if (!this.nodeInitialized || !this.clientnode) {
+      await this.initialize();
     }
+
+    if (!this.clientnode) {
+      throw new Error('P2P client not initialized');
+    }
+
     return {
       peerId: this.clientnode.peerId.toString(),
       addresses: this.clientnode.getMultiaddrs().map(ma => ma.toString())
-    }
+    };
   }
 
   async getPeers(): Promise<Peer[]> {
-    return Array.from(this.connectedPeers.values())
+    if (!this.nodeInitialized || !this.clientnode) {
+      console.log('[P2PService] Cannot get peers: node not initialized');
+      return [];
+    }
+
+    if (!this.isConnected()) {
+      console.log('[P2PService] Cannot get peers: not connected to master node');
+      return [];
+    }
+
+    // Convert Map to array
+    const peerList = Array.from(this.connectedPeers.values());
+    console.log('[P2PService] Returning peer list:', peerList);
+    return peerList;
   }
 
   async handleMessage(type: string, data: any): Promise<void> {
@@ -374,14 +474,16 @@ export class P2PService {
     }
   }
 
-  isConnected(): boolean {
-    if (!this.clientnode || !this.remotePeer) {
-      return false;
-    }
-    
-    // Check if we have an active connection to the remote peer
-    const connections = this.clientnode.getConnections();
-    const isPeerConnected = connections.some(conn => conn.remotePeer.toString() === this.remotePeer?.toString());
-    return isPeerConnected && !this.isConnecting;
+  public isConnected(): boolean {
+    return this.nodeInitialized && 
+           this.clientnode !== null && 
+           this.remotePeer !== null && 
+           this.clientnode.getConnections().some(conn => 
+             conn.remotePeer.toString() === this.remotePeer?.toString()
+           );
+  }
+
+  public isInitialized(): boolean {
+    return this.nodeInitialized;
   }
 } 
