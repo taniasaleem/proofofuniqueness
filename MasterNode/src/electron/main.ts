@@ -4,30 +4,58 @@ import { fileURLToPath } from 'url';
 import { isDev } from "./util.js";
 import fs from 'fs';
 import { p2pService } from './p2p.js';
+import { promises as fsPromises } from 'fs';
 
 // Get the directory path using import.meta.url
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const getAppPath = () => {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'app')
-    : path.join(__dirname, '..');
+const getPreloadPath = () => {
+  // In development, preload.js will be in the same directory as main.js
+  // In production, it will be in resources/app/build-electron
+  if (app.isPackaged) {
+    const preloadPath = path.join(process.resourcesPath, 'app', 'build-electron', 'preload.js');
+    console.log('[Main] Production preload path:', preloadPath);
+    return preloadPath;
+  } else {
+    const preloadPath = path.join(__dirname, 'preload.js');
+    console.log('[Main] Development preload path:', preloadPath);
+    return preloadPath;
+  }
 };
+
+
 
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow() {
+async function createWindow() {
+  
+  // Get and verify preload script path
+  const preloadPath = path.join(__dirname, 'preload.js');
+  // preloadPath = getPreloadPath();
+  console.log('[Main] Using preload script at:', preloadPath);
+  
+  try {
+    await fsPromises.access(preloadPath);
+    console.log('[Main] Preload script found successfully');
+  } catch (error) {
+    console.error('[Main] Preload script not found:', error);
+    console.error('[Main] Current directory:', __dirname);
+    console.error('[Main] Is packaged:', app.isPackaged);
+    throw new Error('Preload script not found');
+  }
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       webSecurity: true
     }
   });
+
 
   // Set Content Security Policy
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -47,23 +75,17 @@ function createWindow() {
     });
   });
 
-  // Load the preload script
-  const preloadPath = path.join(__dirname, 'preload.js');
-  if (fs.existsSync(preloadPath)) {
-    console.log('Preload script found at:', preloadPath);
-    const preloadContent = fs.readFileSync(preloadPath, 'utf-8');
-    // console.log('Preload script content:', preloadContent);
-  } else {
-    console.error('Preload script not found at:', preloadPath);
-  }
 
   // Load the app
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.setMenu(null);
-    mainWindow.loadFile(path.join(getAppPath(), 'dist', 'index.html'));
+    // Use app.getAppPath() to get the correct path in production
+    const indexPath = path.join(app.getAppPath(), 'build-react', 'index.html');
+    await mainWindow.loadFile(indexPath);
+      // open dev tools for debugging 
+    // mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on('closed', () => {

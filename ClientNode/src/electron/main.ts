@@ -66,15 +66,20 @@ async function createWindow() {
       console.log('[Main] Loading development server');
       const port = process.env.VITE_DEV_SERVER_PORT || '3001';
       await mainWindow.loadURL(`http://localhost:${port}`);
-      mainWindow.webContents.openDevTools();
       console.log('[Main] Development server loaded successfully');
+      // open dev tools for debugging
+      mainWindow.webContents.openDevTools();
     } catch (error) {
       console.error('[Main] Failed to load development server:', error);
       await mainWindow.loadFile(path.join(__dirname, '../index.html'));
     }
   } else {
     console.log('[Main] Loading production build');
-    await mainWindow.loadFile(path.join(__dirname, '../index.html'));
+    // Use app.getAppPath() to get the correct path in production
+    const indexPath = path.join(app.getAppPath(), 'build-react', 'index.html');
+    await mainWindow.loadFile(indexPath);
+      // open dev tools for debugging 
+    // mainWindow.webContents.openDevTools();
   }
 }
 

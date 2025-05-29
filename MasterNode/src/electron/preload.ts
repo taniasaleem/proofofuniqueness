@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcRendererEvent } from 'electron';
+const { contextBridge, ipcRenderer } = require('electron');
+// const type = require('electron');
 
 // Define interfaces
 interface IpcRenderer {
@@ -13,18 +13,18 @@ interface ElectronAPI {
 }
 
 // Export the type for use in other files
-export type { ElectronAPI };
+// export type { ElectronAPI };
 
-// Declare the window interface
-declare global {
-  interface Window {
-    electron: ElectronAPI;
-  }
-}
+// // Declare the window interface
+// declare global {
+//   interface Window {
+//     electron: ElectronAPI;
+//   }
+// }
 
-// Define valid channels for security
-const validSendChannels = ['p2p-send', 'p2p-get-peers'];
-const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-peers-list', 'peer-connected', 'peer-disconnected'];
+// // Define valid channels for security
+// const validSendChannels = ['p2p-send', 'p2p-get-peers'];
+// const validReceiveChannels = ['p2p-message', 'p2p-error', 'p2p-peers-list', 'peer-connected', 'peer-disconnected'];
 
 // Add debug logging function
 const debugLog = (message: string, data?: any) => {
@@ -34,19 +34,19 @@ const debugLog = (message: string, data?: any) => {
 
 debugLog('=== Preload Script Initialization ===');
 debugLog('1. Environment Check:', {
-  hasContextBridge: typeof contextBridge !== 'undefined',
-  hasIpcRenderer: typeof ipcRenderer !== 'undefined',
-  processType: process.type,
-  isRenderer: process.type === 'renderer',
+  // hasContextBridge: typeof contextBridge !== 'undefined',
+  // hasIpcRenderer: typeof ipcRenderer !== 'undefined',
+  // processType: process.type,
+  // isRenderer: process.type === 'renderer',
   nodeVersion: process.versions.node,
   electronVersion: process.versions.electron
 });
 
-console.log('2. Initial Window State:', {
-  hasElectron: !!window.electron,
-  windowKeys: Object.keys(window),
-  electronKeys: window.electron ? Object.keys(window.electron) : []
-});
+// console.log('2. Initial Window State:', {
+//   hasElectron: !!window.electron,
+//   windowKeys: Object.keys(window),
+//   electronKeys: window.electron ? Object.keys(window.electron) : []
+// });
 
 try {
   console.log('3. Attempting to expose IPC API...');
@@ -104,7 +104,7 @@ try {
           console.log(`[${new Date().toISOString()}] IPC on called with channel: ${channel}`);
 
           // Add the listener
-          ipcRenderer.on(channel, (event, ...args) => {
+          ipcRenderer.on(channel, (event: any, ...args: any[]) => {
             try {
               // Validate message structure
               if (!args || args.length === 0) {
@@ -186,7 +186,7 @@ try {
   console.log('5. Exposing API to renderer...');
   
   // Ensure we're in a renderer process
-  if (process.type === 'renderer') {
+  // if (process === 'renderer') {
     // Use a more direct approach to expose the API
     (window as any).electron = electronAPI;
     
@@ -196,40 +196,43 @@ try {
     } catch (error) {
       console.warn('contextBridge exposure failed, using direct assignment:', error);
     }
-  } else {
-    throw new Error('Not in renderer process');
-  }
+  // } else {
+  //   throw new Error('Not in renderer process');
+  // }
 
-  console.log('6. Post-exposure Window State:', {
-    hasElectron: !!window.electron,
-    windowKeys: Object.keys(window),
-    electronKeys: window.electron ? Object.keys(window.electron) : [],
-    electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
-  });
+  // console.log('6. Post-exposure Window State:', {
+  //   hasElectron: !!window.electron,
+  //   windowKeys: Object.keys(window),
+  //   electronKeys: window.electron ? Object.keys(window.electron) : [],
+  //   electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
+  // });
 
   console.log('=== Preload Script Initialization Complete ===');
 } catch (error) {
   console.error('=== Preload Script Error ===');
   console.error('Failed to expose IPC API:', error);
-  console.error('Error state window:', {
-    hasElectron: !!window.electron,
-    windowKeys: Object.keys(window),
-    electronKeys: window.electron ? Object.keys(window.electron) : []
-  });
+  // console.error('Error state window:', {
+  //   hasElectron: !!window.electron,
+  //   windowKeys: Object.keys(window),
+  //   electronKeys: window.electron ? Object.keys(window.electron) : []
+  // });
 }
 
 // Verify API exposure after DOM is loaded
 window.addEventListener('DOMContentLoaded', () => {
   console.log('=== DOM Content Loaded ===');
-  console.log('1. Preload script verification:', {
-    hasElectron: !!window.electron,
-    windowKeys: Object.keys(window),
-    electronKeys: window.electron ? Object.keys(window.electron) : [],
-    electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
-  });
+  // console.log('1. Preload script verification:', {
+  //   hasElectron: !!window.electron,
+  //   windowKeys: Object.keys(window),
+  //   electronKeys: window.electron ? Object.keys(window.electron) : [],
+  //   electronMethods: window.electron?.ipcRenderer ? Object.keys(window.electron.ipcRenderer) : []
+  // });
 
   // Test IPC functionality
-  if (window.electron?.ipcRenderer) {
+  console.log("window", window);
+  // console.log("electron", window.Electron);
+
+  if (ipcRenderer) {
     console.log('2. Testing IPC functionality...');
     // try {
     //   window.electron.ipcRenderer.send('p2p-send', {
