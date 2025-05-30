@@ -76,13 +76,26 @@ try {
             messageData.timestamp = new Date().toISOString();
           }
 
+          // Add error handling wrapper
+          const wrappedData = {
+            ...messageData,
+            _errorHandled: false
+          };
+
           // Log the message being sent
-          console.log(`[${new Date().toISOString()}] IPC send called with channel: ${channel}`, messageData);
+          console.log(`[${new Date().toISOString()}] IPC send called with channel: ${channel}`, wrappedData);
 
           // Send the message
-          ipcRenderer.send(channel, messageData);
+          ipcRenderer.send(channel, wrappedData);
         } catch (error) {
           console.error(`[${new Date().toISOString()}] Error in IPC send:`, error);
+          // Send error back to renderer
+          ipcRenderer.send('p2p-error', {
+            type: 'error',
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            timestamp: new Date().toISOString()
+          });
         }
       },
 
@@ -103,7 +116,7 @@ try {
           // Log the listener being added
           console.log(`[${new Date().toISOString()}] IPC on called with channel: ${channel}`);
 
-          // Add the listener
+          // Add the listener with enhanced error handling
           ipcRenderer.on(channel, (event: any, ...args: any[]) => {
             try {
               // Validate message structure
@@ -116,6 +129,12 @@ try {
               if (!message || typeof message !== 'object') {
                 console.error('IPC received invalid message structure:', message);
                 return;
+              }
+
+              // Check if this is an error message
+              if (message.error && !message._errorHandled) {
+                console.error('Received error message:', message);
+                message._errorHandled = true;
               }
 
               // Ensure message has required fields

@@ -1,15 +1,25 @@
 import { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
+// import { useQuery } from "@tanstack/react-query";
 // import { useAppDrawer } from "../hooks/drawer";
-import { getAllNodes, nodetype } from "../utils/api/masternode";
+// import { getAllNodes, nodetype } from "../utils/api/masternode";
+import { nodetype } from "../utils/api/masternode";
 import { AppLayout } from "../components/layout/AppLayout";
 import "../styles/pages/masternode/nodes.scss";
 
 export default function MasterNode(): JSX.Element {
-  const { data: allnodes } = useQuery({
-    queryKey: ["allnodes"],
-    queryFn: getAllNodes,
-  });
+  // const { data: allnodes } = useQuery({
+  //   queryKey: ["allnodes"],
+  //   queryFn: getAllNodes,
+  // });
+  const allnodes = [
+    {
+      address: "127.0.0.1",
+      timestamp: 1717171717171,
+      wallet: {
+        address: "0x1234567890",
+      },
+    }
+  ];
 
   return (
     <AppLayout>

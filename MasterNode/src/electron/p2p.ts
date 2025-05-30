@@ -1,9 +1,109 @@
 import { createLibp2p } from './libp2p.js'
-import fs from 'fs/promises'
+import fs from 'fs'
+import path from 'path'
 import { createEd25519PeerId } from '@libp2p/peer-id-factory'
 import { peerIdFromString } from '@libp2p/peer-id'
-import { ipcMain } from 'electron'
-import type { Stream } from '@libp2p/interface'
+import { app } from 'electron'
+import type { WriteStream } from 'fs'
+// import { ipcMain } from 'electron'
+// import type { Stream } from '@libp2p/interface'
+
+// Protocol constants
+const PEERLIST_PROTOCOL = '/peerlist/1.0.0'
+const P2P_PROTOCOL = '/p2p/1.0.0'
+
+// Store connected peers
+const connectedPeers = new Map()
+
+// Get the application data directory
+const getAppDataPath = () => {
+  // In development, use the project directory
+  return path.join(process.cwd(), 'MasterNode')
+}
+
+// Ensure directory exists
+const ensureDirectoryExists = (dirPath: string) => {
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 })
+      console.log('Created directory:', dirPath)
+    }
+  } catch (error) {
+    console.error('Error creating directory:', dirPath, error)
+    throw error
+  }
+}
+
+// Initialize application directories
+let appDataPath = getAppDataPath()
+console.log('P2P Application data path:', appDataPath)
+
+try {
+  ensureDirectoryExists(appDataPath)
+} catch (error) {
+  console.error('Failed to create application directory:', error)
+  // Fallback to user's home directory if app directory fails
+  const homeDir = process.env.HOME || process.env.USERPROFILE
+  if (homeDir) {
+    const fallbackPath = path.join(homeDir, '.masternode')
+    console.log('Using fallback directory:', fallbackPath)
+    ensureDirectoryExists(fallbackPath)
+    appDataPath = fallbackPath
+  } else {
+    throw new Error('Could not determine application data directory')
+  }
+}
+
+// Set up file paths
+const MASTER_KEY_FILE = path.join(appDataPath, 'master-key.json')
+const LOG_FILE = path.join(appDataPath, 'p2p.log')
+
+// Initialize logging
+function initializeLogging() {
+  try {
+    // Create log file if it doesn't exist
+    if (!fs.existsSync(LOG_FILE)) {
+      fs.writeFileSync(LOG_FILE, '', { mode: 0o644 })
+      console.log('Created P2P log file:', LOG_FILE)
+    }
+    
+    // Test write access
+    fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] P2P Logging initialized\n`)
+    console.log('P2P Logging initialized at:', LOG_FILE)
+  } catch (error) {
+    console.error('Failed to initialize P2P logging:', error)
+    // Try to create the file again with different permissions
+    try {
+      fs.writeFileSync(LOG_FILE, '', { mode: 0o666 })
+      console.log('Created P2P log file with alternative permissions:', LOG_FILE)
+    } catch (retryError) {
+      console.error('Failed to create P2P log file even with alternative permissions:', retryError)
+    }
+  }
+}
+
+// Initialize logging
+initializeLogging()
+
+// Test logging
+console.log('P2P Application data path:', appDataPath)
+console.log('P2P Log file path:', LOG_FILE)
+console.log('P2P Master key file path:', MASTER_KEY_FILE)
+
+function logToFile(message: string, data?: any) {
+  const timestamp = new Date().toISOString()
+  const logMessage = `[${timestamp}] ${message} ${data ? JSON.stringify(data, null, 2) : ''}\n`
+  
+  // Always log to console
+  console.log(`[P2P] ${message}`, data ? data : '')
+  
+  // Log to file
+  try {
+    fs.appendFileSync(LOG_FILE, logMessage)
+  } catch (error) {
+    console.error('Failed to write to P2P log file:', error)
+  }
+}
 
 export const P2P_MESSAGE_TYPES = {
   // Connection
@@ -45,106 +145,261 @@ export const P2P_MESSAGE_TYPES = {
 
 export type P2PMessageType = keyof typeof P2P_MESSAGE_TYPES;
 
-// Store connected peers
-const connectedPeers = new Map()
-const MASTER_KEY_FILE = 'master-key.json'
-const PEERLIST_PROTOCOL = '/peerlist/1.0.0'
-const P2P_PROTOCOL = '/p2p/1.0.0'
+export interface P2PInitializationStatus {
+  isReady: boolean;
+  stage: string;
+  error: string | null;
+  progress: number;
+}
 
 export class P2PService {
   private node: any
   private peerId: any
   private isReady: boolean = false
   private eventHandlers: Map<string, Set<(data: any) => void>> = new Map()
+  private initializationPromise: Promise<void> | null = null
+  private messageHandlers: Map<string, Set<(data: any) => void>> = new Map()
+  private initializationError: Error | null = null
+  private initializationStage: string = 'not_started'
+  private initializationProgress: number = 0
 
   constructor() {
-    this.initialize()
+    logToFile('P2PService constructor')
+    this.initializationPromise = this.initialize()
+  }
+
+  public getInitializationStatus(): P2PInitializationStatus {
+    return {
+      isReady: this.isReady,
+      stage: this.initializationStage,
+      error: this.initializationError ? this.initializationError.message : null,
+      progress: this.initializationProgress
+    }
   }
 
   private async initialize() {
+    logToFile('Initializing P2P service...')
+    console.log('Initializing P2P service...')
     try {
       // Load or create peer ID
+      this.initializationStage = 'loading_peer_id'
+      this.initializationProgress = 10
       this.peerId = await this.loadOrCreatePeerId()
+      logToFile('Peer ID loaded/created successfully')
+      this.initializationProgress = 30
 
       // Create a new libp2p node
+      this.initializationStage = 'creating_node'
+      this.initializationProgress = 40
       this.node = await createLibp2p({
         peerId: this.peerId,
         addresses: {
           listen: ['/ip4/0.0.0.0/tcp/10333']
         }
       })
+      logToFile('Libp2p node created')
+      this.initializationProgress = 60
 
-      // Handle peer list protocol
-      this.node.handle(PEERLIST_PROTOCOL, async ({ stream }: { stream: Stream }) => {
-        try {
-          const peerList = this.getPeerListString()
-          console.log('Sending peer list:', peerList)
-          const encoder = new TextEncoder()
-          const peerListBytes = encoder.encode(peerList)
-          await stream.sink([peerListBytes])
-          await stream.close()
-        } catch (err) {
-          console.error('Error sending peer list:', err)
-        }
-      })
-
-      // Handle P2P protocol
-      this.node.handle(P2P_PROTOCOL, async ({ stream }: { stream: Stream }) => {
-        try {
-          const chunks = []
-          for await (const chunk of stream.source) {
-            chunks.push(chunk)
-          }
-          
-          if (chunks.length > 0) {
-            // Convert Uint8ArrayList to Uint8Array
-            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
-            const data = new Uint8Array(totalLength)
-            let offset = 0
-            for (const chunk of chunks) {
-              // Convert each chunk to Uint8Array using slice
-              const chunkArray = new Uint8Array(chunk.slice())
-              data.set(chunkArray, offset)
-              offset += chunkArray.length
-            }
-            
-            const message = JSON.parse(new TextDecoder().decode(data))
-            this.handleMessage(message)
-          }
-          await stream.close()
-        } catch (err) {
-          console.error('Error handling P2P message:', err)
-        }
-      })
-
-      // Set up event listeners
+      // Wait for node to start
+      this.initializationStage = 'starting_node'
+      this.initializationProgress = 70
+      await this.node.start()
+      logToFile('Libp2p node started')
+      this.initializationProgress = 80
+      
+      // Set up message handlers before marking as ready
+      this.initializationStage = 'setting_up_handlers'
+      this.setupMessageHandlers()
       this.setupEventListeners()
-
+      this.initializationProgress = 90
+      
       this.isReady = true
+      this.initializationError = null
+      this.initializationStage = 'ready'
+      this.initializationProgress = 100
+      logToFile('P2P service initialized successfully, isReady: ' + this.isReady)
       console.log('P2P service initialized successfully')
     } catch (error) {
-      console.error('Error initializing P2P service:', error)
+      logToFile('Error initializing P2P service: ' + error)
+      this.isReady = false
+      this.initializationError = error instanceof Error ? error : new Error(String(error))
+      this.initializationStage = 'error'
+      throw this.initializationError
+    }
+  }
+
+  private setupMessageHandlers() {
+    // Set up default handlers for common message types
+    this.onMessage('get-nodes', async (message) => {
+      const peers = this.getPeers()
+      return {
+        type: 'nodes-response',
+        data: { peers },
+        timestamp: new Date().toISOString(),
+        success: true
+      }
+    })
+
+    // Add other default handlers as needed
+  }
+
+  public onMessage(type: string, handler: (message: any) => Promise<any> | any): void {
+    if (!this.messageHandlers.has(type)) {
+      this.messageHandlers.set(type, new Set())
+    }
+    this.messageHandlers.get(type)?.add(handler)
+  }
+
+  public async handleMessage(message: any): Promise<{
+    type: string;
+    data?: any;
+    error?: string;
+    timestamp: string;
+    success: boolean;
+  }> {
+    try {
+      console.log('[P2P Electron] Received raw message:', message)
+      
+      // Extract message from args if it's wrapped in an IPC message
+      const actualMessage = message.args?.[0] || message
+      console.log('[P2P Electron] Extracted message:', actualMessage)
+
+      // Handle port messages differently
+      if (message.sender && message.ports) {
+        console.log('[P2P Electron] Received port message, skipping type validation')
+        return {
+          type: 'port-message',
+          timestamp: new Date().toISOString(),
+          success: true
+        }
+      }
+
+      // Validate message structure
+      if (!actualMessage || typeof actualMessage !== 'object') {
+        console.error('[P2P Electron] Invalid message data:', actualMessage)
+        return {
+          type: 'unknown',
+          error: 'Invalid message data',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+
+      if (!actualMessage.type) {
+        console.error('[P2P Electron] Message missing type field:', actualMessage)
+        return {
+          type: 'unknown',
+          error: 'Message missing type field',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+
+      // Validate message type
+      const validTypes = Object.values(P2P_MESSAGE_TYPES)
+      console.log('[P2P Electron] Valid message types:', validTypes)
+      console.log('[P2P Electron] Message type to validate:', actualMessage.type)
+      
+      if (!validTypes.includes(actualMessage.type)) {
+        console.warn(`[P2P Electron] Unknown message type: ${actualMessage.type}`)
+        return {
+          type: actualMessage.type,
+          error: 'Unknown message type',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+
+      // Ensure message has required fields
+      const formattedMessage = {
+        type: actualMessage.type,
+        data: actualMessage.data || {},
+        timestamp: actualMessage.timestamp || new Date().toISOString(),
+        success: actualMessage.success !== undefined ? actualMessage.success : !actualMessage.error
+      }
+      console.log('[P2P Electron] Formatted message:', formattedMessage)
+
+      // Get handlers for this message type
+      const handlers = this.messageHandlers.get(formattedMessage.type)
+      console.log('[P2P Electron] Found handlers:', handlers ? handlers.size : 0)
+      
+      if (handlers) {
+        // Execute all handlers and collect responses
+        const responses = await Promise.all(
+          Array.from(handlers).map(async (handler) => {
+            try {
+              console.log('[P2P Electron] Calling handler for type:', formattedMessage.type)
+              return await handler(formattedMessage)
+            } catch (error) {
+              console.error(`[P2P Electron] Error in message handler for type ${formattedMessage.type}:`, error)
+              return {
+                type: formattedMessage.type,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                timestamp: new Date().toISOString(),
+                success: false
+              }
+            }
+          })
+        )
+
+        // Return the first successful response, or the first error if all failed
+        const successfulResponse = responses.find(r => r?.success)
+        if (successfulResponse) {
+          return successfulResponse
+        }
+        return responses[0] || {
+          type: formattedMessage.type,
+          error: 'No handlers processed the message successfully',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+
+      return {
+        type: formattedMessage.type,
+        error: 'No handlers registered for message type',
+        timestamp: new Date().toISOString(),
+        success: false
+      }
+    } catch (error) {
+      console.error('[P2P Electron] Error handling P2P message:', error)
+      return {
+        type: message?.type || 'unknown',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+        success: false
+      }
     }
   }
 
   private async loadOrCreatePeerId() {
+    logToFile('Loading or creating master node peer ID...')
     try {
-      const keyData = await fs.readFile(MASTER_KEY_FILE, 'utf-8')
-      const { id } = JSON.parse(keyData)
-      console.log('Loaded existing master node peer ID')
-      return await peerIdFromString(id)
-    } catch (err) {
-      console.log('Creating new master node peer ID')
-      const peerId = await createEd25519PeerId()
-      
-      const keyData = {
-        id: peerId,
-        pubKey: peerId.publicKey
+      // Check if master key file exists
+      if (fs.existsSync(MASTER_KEY_FILE)) {
+        const keyData = await fs.promises.readFile(MASTER_KEY_FILE, 'utf-8')
+        const { id } = JSON.parse(keyData)
+        logToFile('Loaded existing master node peer ID')
+        return await peerIdFromString(id)
+      } else {
+        logToFile('Creating new master node peer ID')
+        const peerId = await createEd25519PeerId()
+        
+        const keyData = {
+          id: peerId.toString(),
+          pubKey: peerId.publicKey?.toString()
+        }
+        
+        // Ensure directory exists before writing
+        ensureDirectoryExists(path.dirname(MASTER_KEY_FILE))
+        
+        await fs.promises.writeFile(MASTER_KEY_FILE, JSON.stringify(keyData, null, 2))
+        logToFile('Saved new master node peer ID to: ' + MASTER_KEY_FILE)
+        return peerId
       }
-      
-      await fs.writeFile(MASTER_KEY_FILE, JSON.stringify(keyData, null, 2))
-      console.log('Saved new master node peer ID')
-      return peerId
+    } catch (error) {
+      logToFile('Error in loadOrCreatePeerId: ' + error)
+      throw error
     }
   }
 
@@ -229,69 +484,6 @@ export class P2PService {
     console.log()
   }
 
-  private handleMessage(message: any) {
-    try {
-      console.log('[P2P Electron] Received raw message:', message);
-      
-      // Extract message from args if it's wrapped in an IPC message
-      const actualMessage = message.args?.[0] || message;
-      console.log('[P2P Electron] Extracted message:', actualMessage);
-
-      // Handle port messages differently
-      if (message.sender && message.ports) {
-        console.log('[P2P Electron] Received port message, skipping type validation');
-        return;
-      }
-
-      // Validate message structure
-      if (!actualMessage || typeof actualMessage !== 'object') {
-        console.error('[P2P Electron] Invalid message data:', actualMessage);
-        return;
-      }
-
-      if (!actualMessage.type) {
-        console.error('[P2P Electron] Message missing type field:', actualMessage);
-        return;
-      }
-
-      // Validate message type
-      const validTypes = Object.values(P2P_MESSAGE_TYPES);
-      console.log('[P2P Electron] Valid message types:', validTypes);
-      console.log('[P2P Electron] Message type to validate:', actualMessage.type);
-      
-      if (!validTypes.includes(actualMessage.type)) {
-        console.warn(`[P2P Electron] Unknown message type: ${actualMessage.type}`);
-        return;
-      }
-
-      // Ensure message has required fields
-      const formattedMessage = {
-        type: actualMessage.type,
-        data: actualMessage.data || {},
-        timestamp: actualMessage.timestamp || new Date().toISOString(),
-        success: actualMessage.success !== undefined ? actualMessage.success : !actualMessage.error
-      };
-      console.log('[P2P Electron] Formatted message:', formattedMessage);
-
-      // Notify handlers
-      const handlers = this.eventHandlers.get(formattedMessage.type);
-      console.log('[P2P Electron] Found handlers:', handlers ? handlers.size : 0);
-      
-      if (handlers) {
-        handlers.forEach(handler => {
-          try {
-            console.log('[P2P Electron] Calling handler for type:', formattedMessage.type);
-            handler(formattedMessage);
-          } catch (error) {
-            console.error(`[P2P Electron] Error in message handler for type ${formattedMessage.type}:`, error);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('[P2P Electron] Error handling P2P message:', error);
-    }
-  }
-
   public async sendMessage(peerId: string, message: any) {
     if (!this.isReady) {
       throw new Error('P2P service not ready');
@@ -372,8 +564,34 @@ export class P2PService {
     return results;
   }
 
+  public async waitForReady(): Promise<void> {
+    if (this.initializationPromise) {
+      try {
+        await this.initializationPromise
+        if (!this.isReady) {
+          throw new Error('P2P service initialization failed')
+        }
+      } catch (error) {
+        // If initialization failed, throw the stored error
+        if (this.initializationError) {
+          throw this.initializationError
+        }
+        throw error
+      }
+    } else {
+      throw new Error('P2P service initialization not started')
+    }
+  }
+
   public isConnected(): boolean {
-    return this.isReady
+    return this.isReady && 
+           this.node !== null && 
+           this.node !== undefined && 
+           this.initializationError === null
+  }
+
+  public getInitializationError(): Error | null {
+    return this.initializationError
   }
 
   public getPeers(): string[] {
@@ -394,60 +612,3 @@ export class P2PService {
     this.eventHandlers.get('peer:disconnect')?.add(handler)
   }
 }
-
-// Create and export a singleton instance
-export const p2pService = new P2PService()
-
-// Set up IPC handlers
-ipcMain.on('p2p-send', async (event, message) => {
-  console.log('[P2P IPC] Received message:', message);
-  try {
-    if (!message || typeof message !== 'object') {
-      console.error('[P2P IPC] Invalid message format');
-      throw new Error('Invalid message format');
-    }
-
-    if (!message.type) {
-      console.error('[P2P IPC] Message missing type field');
-      throw new Error('Message must include a type field');
-    }
-
-    console.log('[P2P IPC] Broadcasting message to peers');
-    const results = await p2pService.broadcastMessage(message);
-    console.log('[P2P IPC] Broadcast results:', results);
-    
-    event.reply('p2p-message', { 
-      type: message.type,
-      success: true,
-      data: results,
-      timestamp: new Date().toISOString()
-    });
-    console.log('[P2P IPC] Sent response to renderer');
-  } catch (error: unknown) {
-    console.error('[P2P IPC] Error handling message:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    event.reply('p2p-error', { 
-      type: 'error',
-      error: errorMessage,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-ipcMain.on('p2p-get-peers', (event) => {
-  try {
-    const peers = p2pService.getPeers();
-    event.reply('p2p-peers-list', {
-      type: 'peers-list',
-      data: peers,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    event.reply('p2p-error', {
-      type: 'error',
-      error: errorMessage,
-      timestamp: new Date().toISOString()
-    });
-  }
-}); 

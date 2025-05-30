@@ -67,6 +67,8 @@ class P2PService {
 
   private checkConnection() {
     if (window.electron?.ipcRenderer) {
+      console.log("IN CHECK CONNECTION")
+      console.log(this)
       window.electron.ipcRenderer.send('p2p-send', {
         type: P2P_MESSAGE_TYPES.GET_NODES,
         data: {},
