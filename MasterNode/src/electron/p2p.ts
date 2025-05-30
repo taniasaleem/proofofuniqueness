@@ -240,6 +240,70 @@ export class P2PService {
       }
     })
 
+    // Add handler for token hash creation
+    this.onMessage('token-hash-created', async (message) => {
+      logToFile('Received token hash creation message', message)
+      try {
+        // Store the token hash in the local state
+        const { serialNumber, hash } = message.data
+        if (!serialNumber || !hash) {
+          throw new Error('Invalid token hash data')
+        }
+
+        // Broadcast the token hash to all peers
+        await this.broadcastMessage({
+          type: 'token-hash-created',
+          data: { serialNumber, hash },
+          timestamp: new Date().toISOString()
+        })
+
+        return {
+          type: 'token-hash-created',
+          data: { serialNumber, hash },
+          timestamp: new Date().toISOString(),
+          success: true
+        }
+      } catch (error) {
+        logToFile('Error handling token hash creation', error)
+        return {
+          type: 'token-hash-created',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+    })
+
+    // Add handler for token hash verification
+    this.onMessage('verify-token-hash', async (message) => {
+      logToFile('Received token hash verification request', message)
+      try {
+        const { serialNumber, hash } = message.data
+        if (!serialNumber || !hash) {
+          throw new Error('Invalid token hash data')
+        }
+
+        // Verify the token hash
+        // TODO: Implement actual verification logic
+        const isValid = true // Placeholder
+
+        return {
+          type: 'token-hash-verification',
+          data: { serialNumber, hash, isValid },
+          timestamp: new Date().toISOString(),
+          success: true
+        }
+      } catch (error) {
+        logToFile('Error handling token hash verification', error)
+        return {
+          type: 'token-hash-verification',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+          success: false
+        }
+      }
+    })
+
     // Add other default handlers as needed
   }
 
