@@ -1,9 +1,55 @@
-import { createLibp2p, Libp2pConfig } from './libp2p.js'
+import { createLibp2p } from './libp2p.js'
 import { multiaddr, Multiaddr } from '@multiformats/multiaddr'
 import { ipcMain, BrowserWindow } from 'electron'
 import { Libp2p } from 'libp2p'
 import type { PeerId } from '@libp2p/interface-peer-id'
 import { Uint8ArrayList } from 'uint8arraylist'
+import { createEd25519PeerId } from '@libp2p/peer-id-factory'
+import { peerIdFromString } from '@libp2p/peer-id'
+import fs from 'fs'
+import path from 'path'
+
+// Get the application data directory
+const getAppDataPath = () => {
+  // In development, use the project directory
+  return path.join(process.cwd(), 'ClientNode')
+}
+
+// Ensure directory exists
+const ensureDirectoryExists = (dirPath: string) => {
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 })
+      console.log('Created directory:', dirPath)
+    }
+  } catch (error) {
+    console.error('Error creating directory:', dirPath, error)
+    throw error
+  }
+}
+
+// Initialize application directories
+let appDataPath = getAppDataPath()
+console.log('P2P Application data path:', appDataPath)
+
+try {
+  ensureDirectoryExists(appDataPath)
+} catch (error) {
+  console.error('Failed to create application directory:', error)
+  // Fallback to user's home directory if app directory fails
+  const homeDir = process.env.HOME || process.env.USERPROFILE
+  if (homeDir) {
+    const fallbackPath = path.join(homeDir, '.clientnode')
+    console.log('Using fallback directory:', fallbackPath)
+    ensureDirectoryExists(fallbackPath)
+    appDataPath = fallbackPath
+  } else {
+    throw new Error('Could not determine application data directory')
+  }
+}
+
+// Set up file paths
+const CLIENT_KEY_FILE = path.join(appDataPath, 'client-key.json')
 
 interface Peer {
   id: string
@@ -17,6 +63,7 @@ interface PeerMap {
 
 export class P2PService {
   private clientnode: Libp2p | null
+  private peerId: any
   private connectedPeers: Map<string, Peer>
   private isConnecting: boolean
   private readonly MASTER_ADDRESSES: string[]
@@ -34,6 +81,7 @@ export class P2PService {
 
   constructor() {
     this.clientnode = null
+    this.peerId = null
     this.connectedPeers = new Map()
     this.isConnecting = false
     this.MASTER_ADDRESSES = [
@@ -53,6 +101,37 @@ export class P2PService {
     this.connectionAttempts = 0
   }
 
+  private async loadOrCreatePeerId(): Promise<any> {
+    console.log('[P2PService] Loading or creating client peer ID...')
+    try {
+      // Check if client key file exists
+      if (fs.existsSync(CLIENT_KEY_FILE)) {
+        const keyData = await fs.promises.readFile(CLIENT_KEY_FILE, 'utf-8')
+        const { id } = JSON.parse(keyData)
+        console.log('[P2PService] Loaded existing client peer ID')
+        return await peerIdFromString(id)
+      } else {
+        console.log('[P2PService] Creating new client peer ID')
+        const peerId = await createEd25519PeerId()
+        
+        const keyData = {
+          id: peerId.toString(),
+          pubKey: peerId.publicKey?.toString()
+        }
+        
+        // Ensure directory exists before writing
+        ensureDirectoryExists(path.dirname(CLIENT_KEY_FILE))
+        
+        await fs.promises.writeFile(CLIENT_KEY_FILE, JSON.stringify(keyData, null, 2))
+        console.log('[P2PService] Saved new client peer ID to: ' + CLIENT_KEY_FILE)
+        return peerId
+      }
+    } catch (error) {
+      console.error('[P2PService] Error in loadOrCreatePeerId:', error)
+      throw error
+    }
+  }
+
   async initialize(): Promise<Libp2p> {
     console.log('[P2PService] Starting initialization');
     try {
@@ -61,9 +140,14 @@ export class P2PService {
         return this.clientnode;
       }
 
+      // Load or create peer ID first
+      this.peerId = await this.loadOrCreatePeerId();
+      console.log('[P2PService] Peer ID loaded/created:', this.peerId.toString());
+
       console.log('[P2PService] Creating libp2p configuration');
-      const config: Libp2pConfig = {
-        addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] }
+      const config = {
+        addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] },
+        peerId: this.peerId
       }
       
       console.log('[P2PService] Creating libp2p instance');
@@ -249,7 +333,7 @@ export class P2PService {
     }
 
     if (this.isConnected()) {
-      console.log('[P2PService] Already connected, stopping connection attempts');
+      console.log('[P2PService] Already connected to master node, stopping connection attempts');
       this.stopConnectionAttempts();
       return;
     }

@@ -5,6 +5,7 @@ import { createEd25519PeerId } from '@libp2p/peer-id-factory'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { app } from 'electron'
 import type { WriteStream } from 'fs'
+import { Multiaddr } from '@multiformats/multiaddr'
 // import { ipcMain } from 'electron'
 // import type { Stream } from '@libp2p/interface'
 
@@ -13,7 +14,12 @@ const PEERLIST_PROTOCOL = '/peerlist/1.0.0'
 const P2P_PROTOCOL = '/p2p/1.0.0'
 
 // Store connected peers
-const connectedPeers = new Map()
+const connectedPeers = new Map<string, {
+  id: any;
+  connectedAt: Date;
+  lastSeen: Date;
+  addresses: string[];
+}>();
 
 // Get the application data directory
 const getAppDataPath = () => {
@@ -234,7 +240,13 @@ export class P2PService {
       const peers = this.getPeers()
       return {
         type: 'nodes-response',
-        data: { peers },
+        data: { 
+          peers: peers.map(peer => ({
+            id: peer.id,
+            addresses: peer.addresses,
+            // You can add more peer information here if needed
+          }))
+        },
         timestamp: new Date().toISOString(),
         success: true
       }
@@ -473,19 +485,69 @@ export class P2PService {
       const remotePeer = evt.detail
       console.log('New peer connected: ', remotePeer.toString())
       
-      connectedPeers.set(remotePeer.toString(), {
-        id: remotePeer,
-        connectedAt: new Date(),
-        lastSeen: new Date()
-      })
-      
-      this.logPeerList()
-      await this.broadcastPeerList()
+      try {
+        // Get peer addresses from the connection manager
+        const connections = this.node.getConnections(remotePeer)
+        console.log('Connection manager details:', {
+          connections: connections.map((conn: { remoteAddr?: Multiaddr; }) => ({
+            remoteAddr: conn.remoteAddr?.toString(),
+          }))
+        })
 
-      // Notify event handlers
-      const handlers = this.eventHandlers.get('peer:connect')
-      if (handlers) {
-        handlers.forEach(handler => handler(remotePeer.toString()))
+        // Get all known addresses for this peer
+        const peerAddresses: string[] = []
+        
+        // Get addresses from active connections
+        connections.forEach((conn: { remoteAddr?: Multiaddr }) => {
+          if (conn.remoteAddr) {
+            const addr = conn.remoteAddr.toString()
+            if (!peerAddresses.includes(addr)) {
+              peerAddresses.push(addr)
+            }
+          }
+        })
+        
+        // Try to get additional addresses from the peer store
+        try {
+          const peerInfo = await this.node.peerStore.get(remotePeer)
+          if (peerInfo?.addresses) {
+            peerInfo.addresses.forEach((addr: any) => {
+              const addrStr = addr.toString()
+              if (!peerAddresses.includes(addrStr)) {
+                peerAddresses.push(addrStr)
+              }
+            })
+          }
+        } catch (err) {
+          console.log('No additional addresses found in peer store')
+        }
+
+        console.log('Peer addresses:', peerAddresses)
+        
+        connectedPeers.set(remotePeer.toString(), {
+          id: remotePeer,
+          connectedAt: new Date(),
+          lastSeen: new Date(),
+          addresses: peerAddresses
+        })
+        
+        this.logPeerList()
+        await this.broadcastPeerList()
+
+        // Notify event handlers
+        const handlers = this.eventHandlers.get('peer:connect')
+        if (handlers) {
+          handlers.forEach(handler => handler(remotePeer.toString()))
+        }
+      } catch (error) {
+        console.warn('Error handling peer connection:', error)
+        // Still add the peer with empty addresses
+        connectedPeers.set(remotePeer.toString(), {
+          id: remotePeer,
+          connectedAt: new Date(),
+          lastSeen: new Date(),
+          addresses: []
+        })
       }
     })
 
@@ -508,8 +570,9 @@ export class P2PService {
   }
 
   private getPeerListString(): string {
-    const peers = Array.from(connectedPeers.values()).map(peer => ({
-      id: peer.id.toString(),
+    const peers = Array.from(connectedPeers.entries()).map(([id, peer]) => ({
+      id,
+      addresses: peer.addresses,
       connectedAt: peer.connectedAt.toISOString(),
       lastSeen: peer.lastSeen.toISOString()
     }))
@@ -541,6 +604,7 @@ export class P2PService {
     } else {
       connectedPeers.forEach((peer, id) => {
         console.log(`- ${id}`)
+        console.log(`  Addresses: ${peer.addresses.join(', ')}`)
         console.log(`  Connected at: ${peer.connectedAt.toISOString()}`)
         console.log(`  Last seen: ${peer.lastSeen.toISOString()}`)
       })
@@ -658,8 +722,11 @@ export class P2PService {
     return this.initializationError
   }
 
-  public getPeers(): string[] {
-    return Array.from(connectedPeers.keys())
+  public getPeers(): Array<{ id: string; addresses: string[] }> {
+    return Array.from(connectedPeers.entries()).map(([id, peer]) => ({
+      id,
+      addresses: peer.addresses
+    }));
   }
 
   public onPeerConnect(handler: (peerId: string) => void): void {

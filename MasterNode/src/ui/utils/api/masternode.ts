@@ -1,25 +1,38 @@
 import { P2P_MESSAGE_TYPES } from './config';
 import { p2pService } from './p2p';
 
-export type nodetype = {
-  address: string;
-  timestamp: number;
-  wallet: {
+export interface nodetype {
+  id: string;
+  addresses: string[];
+  timestamp?: string;
+  wallet?: {
     address: string;
   };
-};
+}
 
-export const getAllNodes = async (): Promise<nodetype[]> => {
+export interface NodesResponse {
+  type: string;
+  data: {
+    peers: nodetype[];
+  };
+  timestamp: string;
+  success: boolean;
+}
+
+export const getAllNodes = async (): Promise<NodesResponse> => {
+  console.log("I am in getAllNodes");
   return new Promise((resolve, reject) => {
     if (!p2pService.isServiceConnected()) {
+      console.log("There P2P connection is not available");
       reject(new Error('P2P connection is not available'));
       return;
     }
 
     const handler = (message: any) => {
+      console.log("There [Masternode] Received response in getAllNodes:", message);
       if (message.type === P2P_MESSAGE_TYPES.NODES_RESPONSE) {
         p2pService.removeMessageHandler(P2P_MESSAGE_TYPES.NODES_RESPONSE);
-        resolve(message.data.nodes);
+        resolve(message);
       }
     };
 

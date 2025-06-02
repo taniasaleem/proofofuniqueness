@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Paper,
+  // Paper,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { AppLayout } from "../components/layout/AppLayout";
@@ -46,12 +46,12 @@ const StyledContainer = styled(Container)(({ theme }) => ({
   gap: theme.spacing(3),
 }));
 
-const VerificationBox = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3),
-  marginTop: theme.spacing(3),
-  backgroundColor: theme.palette.background.default,
-  border: `1px solid ${theme.palette.divider}`,
-}));
+// const VerificationBox = styled(Paper)(({ theme }) => ({
+//   padding: theme.spacing(3),
+//   marginTop: theme.spacing(3),
+//   backgroundColor: theme.palette.background.default,
+//   border: `1px solid ${theme.palette.divider}`,
+// }));
 
 interface VerificationResult {
   valid: boolean;
@@ -65,20 +65,20 @@ const NodeManager = (): JSX.Element => {
   const [bankID, setBankID] = useState("");
   const [bankTimestamp, setBankTimestamp] = useState<Date | null>(new Date());
   const [generatedToken, setGeneratedToken] = useState<NodeToken | null>(null);
-  const [status, setStatus] = useState("");
+  // const [status, setStatus] = useState("");
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [tempToken, setTempToken] = useState<NodeToken | null>(null);
-  const [isNodeActive, setIsNodeActive] = useState(false);
-  const [verificationResult, setVerificationResult] =
+  // const [isNodeActive, setIsNodeActive] = useState(false);
+  // const [verificationResult, setVerificationResult] =
     useState<VerificationResult | null>(null);
   // const [tokenHash, setTokenHash] = useState<string>("");
 
   const {
     registerTokenHash,
-    verifyTokenHash,
+    // verifyTokenHash,
     // getTokenHash,
     getTokenHashData,
-    getVerificationResult,
+    // getVerificationResult,
     // getVerificationStatus,
     isConnected,
     status: p2pStatus,
@@ -93,10 +93,10 @@ const NodeManager = (): JSX.Element => {
     // Monitor P2P connection status
     if (!isConnected) {
       console.log("P2P disconnected:", p2pStatus);
-      setStatus(p2pError || "P2P connection lost. Please check your connection.");
+      // setStatus(p2pError || "P2P connection lost. Please check your connection.");
     } else {
       console.log("P2P connected");
-      setStatus("Connected to P2P network");
+      // setStatus("Connected to P2P network");
     }
   }, [isConnected, p2pStatus, p2pError]);
 
@@ -106,7 +106,7 @@ const NodeManager = (): JSX.Element => {
       const tokenData = getTokenHashData(serialNumber);
       if (tokenData) {
         console.log("Token data updated:", tokenData);
-        setIsNodeActive(tokenData.verificationCount ? tokenData.verificationCount > 0 : false);
+        // setIsNodeActive(tokenData.verificationCount ? tokenData.verificationCount > 0 : false);
       }
     }
   }, [serialNumber, getTokenHashData]);
@@ -114,7 +114,7 @@ const NodeManager = (): JSX.Element => {
   const generateToken = () => {
     try {
       if (!bankID || !bankTimestamp || !serialNumber) {
-        setStatus("Please fill in all required fields");
+        // setStatus("Please fill in all required fields");
         return;
       }
 
@@ -134,11 +134,11 @@ const NodeManager = (): JSX.Element => {
       setSerialNumber(token.serialNumber);
       setShowConfirmation(true);
     } catch (error) {
-      setStatus(
-        `Error generating token: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      // setStatus(
+      //   `Error generating token: ${
+      //     error instanceof Error ? error.message : "Unknown error"
+      //   }`
+      // );
     }
   };
 
@@ -146,7 +146,7 @@ const NodeManager = (): JSX.Element => {
     if (!tempToken) return;
 
     try {
-      setStatus("Registering token hash...");
+      // setStatus("Registering token hash...");
       
       // Register the token hash with the P2P network
       await registerTokenHash(serialNumber, tempToken.tokenHash);
@@ -155,11 +155,11 @@ const NodeManager = (): JSX.Element => {
       
         setGeneratedToken(tempToken);
         // setTokenHash(tempToken.tokenHash);
-        setStatus("Token confirmed and registered successfully");
+        // setStatus("Token confirmed and registered successfully");
       
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      setStatus(`Error registering token hash: ${errorMessage}`);
+      // const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      // setStatus(`Error registering token hash: ${errorMessage}`);
       console.error("Token hash registration error:", error);
     }
     
@@ -169,48 +169,48 @@ const NodeManager = (): JSX.Element => {
   const handleCancelToken = () => {
     setTempToken(null);
     setShowConfirmation(false);
-    setStatus("Token generation cancelled");
+    // setStatus("Token generation cancelled");
   };
 
-  const verifyToken = async () => {
-    if (!generatedToken) {
-      setStatus("Please generate a token first");
-      return;
-    }
+  // const verifyToken = async () => {
+  //   if (!generatedToken) {
+  //     setStatus("Please generate a token first");
+  //     return;
+  //   }
 
-    if (!isConnected) {
-      setStatus(p2pError || "P2P connection not available. Please try again later.");
-      console.error('P2P connection error:', p2pError);
-      return;
-    }
+  //   if (!isConnected) {
+  //     setStatus(p2pError || "P2P connection not available. Please try again later.");
+  //     console.error('P2P connection error:', p2pError);
+  //     return;
+  //   }
 
-    setStatus("Verifying token...");
-    try {
-      // First verify locally
-      const isValid = generatedToken.isValid(masterNode.masterPublicKey);
+  //   setStatus("Verifying token...");
+  //   try {
+  //     // First verify locally
+  //     const isValid = generatedToken.isValid(masterNode.masterPublicKey);
       
-      // Then verify through P2P network
-      await verifyTokenHash(serialNumber, generatedToken.tokenHash);
+  //     // Then verify through P2P network
+  //     await verifyTokenHash(serialNumber, generatedToken.tokenHash);
       
-      // Get verification result from P2P network
-      const result = getVerificationResult(serialNumber);
+  //     // Get verification result from P2P network
+  //     const result = getVerificationResult(serialNumber);
       
-      setVerificationResult({
-        valid: isValid && (result?.valid || false),
-        verifiedBy: result?.verifiedBy || 0
-      });
+  //     setVerificationResult({
+  //       valid: isValid && (result?.valid || false),
+  //       verifiedBy: result?.verifiedBy || 0
+  //     });
       
-      setIsNodeActive(isValid);
-      setStatus(
-        isValid ? "Token verified successfully" : "Token verification failed"
-      );
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      setStatus(`Error verifying token: ${errorMessage}`);
-      console.error("Verification error:", error);
-    }
-  };
+  //     setIsNodeActive(isValid);
+  //     setStatus(
+  //       isValid ? "Token verified successfully" : "Token verification failed"
+  //     );
+  //   } catch (error) {
+  //     const errorMessage =
+  //       error instanceof Error ? error.message : "Unknown error";
+  //     setStatus(`Error verifying token: ${errorMessage}`);
+  //     console.error("Verification error:", error);
+  //   }
+  // };
 
   const handleSerialNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSerialNumber(e.target.value);
@@ -288,7 +288,7 @@ const NodeManager = (): JSX.Element => {
           </Box>
         </form>
 
-        <VerificationBox>
+        {/* <VerificationBox>
           <Typography variant="h6" gutterBottom>
             Verify Node Token
           </Typography>
@@ -330,7 +330,7 @@ const NodeManager = (): JSX.Element => {
               </Typography>
             </Box>
           )}
-        </VerificationBox>
+        </VerificationBox> */}
 
         <Dialog open={showConfirmation} onClose={handleCancelToken}>
           <DialogTitle>Confirm Token</DialogTitle>

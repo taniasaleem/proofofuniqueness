@@ -30,6 +30,7 @@
     "@emotion/styled": "^11.14.0",
     "@libp2p/interface-peer-id": "^2.0.2",
     "@libp2p/mdns": "^11.0.38",
+    "@libp2p/peer-id-factory": "^4.2.4",
     "@libp2p/tcp": "^10.1.13",
     "@libp2p/websockets": "^9.2.13",
     "@mui/material": "^6.4.8",
